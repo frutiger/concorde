@@ -1,7 +1,7 @@
 from setuptools import setup
 
 setup(name='concorde',
-      version='0.1',
+      version='0.1.1',
       description='ACME client commandline tool and library',
       url='https://github.com/frutiger/concorde',
       author='Masud Rahman',

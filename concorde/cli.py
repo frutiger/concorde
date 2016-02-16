@@ -65,7 +65,7 @@ class MakeCsr(argparse.Action):
 
 def parser_acct_create(subsubparsers):
     subsubparser = subsubparsers.add_parser('create', help='create accounts')
-    subsubparser.set_defaults(action=acct_create, help=False)
+    subsubparser.set_defaults(subsubaction=acct_create, help=False)
     subsubparser.add_argument('--contact', metavar='<email>',
                               dest='contacts', action='append', default=[])
     subsubparser.add_argument('--agreement', metavar='<agreement>')
@@ -73,12 +73,12 @@ def parser_acct_create(subsubparsers):
 def parser_acct_status(subsubparsers):
     subsubparser = subsubparsers.add_parser('status',
                                             help='get account status')
-    subsubparser.set_defaults(action=acct_status, help=False)
+    subsubparser.set_defaults(subsubaction=acct_status)
     subsubparser.add_argument('account', metavar='<account>')
 
 def parser_acct_update(subsubparsers):
     subsubparser = subsubparsers.add_parser('update', help='update account')
-    subsubparser.set_defaults(action=acct_update, help=False)
+    subsubparser.set_defaults(subsubaction=acct_update)
     subsubparser.add_argument('account', metavar='<account>')
     subsubparser.add_argument('--contact', metavar='<email>',
                               dest='contacts', action='append', default=[])
@@ -87,7 +87,7 @@ def parser_acct_update(subsubparsers):
 def parser_authz_create(subsubparsers):
     subsubparser = subsubparsers.add_parser('create',
                                             help='create authorizations')
-    subsubparser.set_defaults(action=authz_create, help=False)
+    subsubparser.set_defaults(subsubaction=authz_create)
     subsubparser.add_argument('--key-type', metavar='<privkey type>',
                               choices=['raw', 'pem', 'der'], required=True)
     subsubparser.add_argument('--key', metavar='<acct privkey>', required=True,
@@ -98,13 +98,13 @@ def parser_authz_create(subsubparsers):
 def parser_authz_status(subsubparsers):
     subsubparser = subsubparsers.add_parser('status',
                                             help='get authorization status')
-    subsubparser.set_defaults(action=authz_status, help=False)
+    subsubparser.set_defaults(subsubaction=authz_status)
     subsubparser.add_argument('authorization', metavar='<authorization>')
 
 def parser_challenge_respond(subsubparsers):
     subsubparser = subsubparsers.add_parser('respond',
                                             help='respond to a challenge')
-    subsubparser.set_defaults(action=challenge_respond, help=False)
+    subsubparser.set_defaults(subsubaction=challenge_respond)
     subsubparser.add_argument('challenge', metavar='<challenge>')
     subsubparser.add_argument('key_authorization',
                               metavar='<key authorization>')
@@ -112,7 +112,7 @@ def parser_challenge_respond(subsubparsers):
 def parser_cert_sign_request(subsubparsers):
     subsubparser = subsubparsers.add_parser('sign-req',
                                             help='request signature')
-    subsubparser.set_defaults(action=cert_sign_request, help=False)
+    subsubparser.set_defaults(subsubaction=cert_sign_request)
     subsubparser.add_argument('--key-type', metavar='<privkey type>',
                                choices=['raw', 'pem', 'der'], required=True)
     subsubparser.add_argument('--key', metavar='<acct privkey>', required=True,
@@ -122,19 +122,19 @@ def parser_cert_sign_request(subsubparsers):
 
 def parser_cert_fetch(subsubparsers):
     subsubparser = subsubparsers.add_parser('fetch', help='get certificate')
-    subsubparser.set_defaults(action=cert, help=False)
+    subsubparser.set_defaults(subsubaction=cert)
     subsubparser.add_argument('certificate', metavar='<certificate>')
 
 def parser_cert_chain(subsubparsers):
     subsubparser = subsubparsers.add_parser('chain',
                                             help='get certificate chain')
-    subsubparser.set_defaults(action=cert_chain, help=False)
+    subsubparser.set_defaults(subsubaction=cert_chain)
     subsubparser.add_argument('certificate', metavar='<certificate>')
 
 def parser_acct(subparsers):
     subparser = subparsers.add_parser('acct',
                                       help='create and manage accounts')
-    subparser.set_defaults(action=subparser.print_help)
+    subparser.set_defaults(subaction=lambda x: subparser.print_help())
     subparser.add_argument('--server', metavar='<url>', required=True,
                            action=MakeClient, dest='client')
     subparser.add_argument('--key-type', metavar='<privkey type>',
@@ -150,7 +150,7 @@ def parser_acct(subparsers):
 def parser_authz(subparsers):
     subparser = subparsers.add_parser('authz',
                                       help='create and manage authorizations')
-    subparser.set_defaults(action=subparser.print_help)
+    subparser.set_defaults(subaction=lambda x: subparser.print_help())
     subparser.add_argument('--server', metavar='<url>', required=True,
                            action=MakeClient, dest='client')
 
@@ -162,7 +162,7 @@ def parser_authz(subparsers):
 def parser_approve(subparsers):
     subparser = subparsers.add_parser('approve',
                                       help='validate challenges')
-    subparser.set_defaults(action=approve, help=False)
+    subparser.set_defaults(subaction=approve)
     subparser.add_argument('--key-type', metavar='<privkey type>',
                             choices=['raw', 'pem', 'der'], required=True)
     subparser.add_argument('--pubkey', metavar='<acct pubkey>', required=True,
@@ -172,7 +172,7 @@ def parser_approve(subparsers):
 def parser_challenge(subparsers):
     subparser = subparsers.add_parser('challenge',
                                       help='create and manage authorizations')
-    subparser.set_defaults(action=subparser.print_help)
+    subparser.set_defaults(subaction=lambda x: subparser.print_help())
     subparser.add_argument('--server', metavar='<url>', required=True,
                            action=MakeClient, dest='client')
     subparser.add_argument('--key-type', metavar='<privkey type>',
@@ -186,7 +186,7 @@ def parser_challenge(subparsers):
 def parser_cert(subparsers):
     subparser = subparsers.add_parser('cert',
                                       help='request and fetch certificates')
-    subparser.set_defaults(action=subparser.print_help)
+    subparser.set_defaults(subaction=lambda x: subparser.print_help())
     subparser.add_argument('--server', metavar='<url>', required=True,
                            action=MakeClient, dest='client')
 
@@ -197,7 +197,7 @@ def parser_cert(subparsers):
 
 def make_parser(name):
     parser = argparse.ArgumentParser(prog=name)
-    parser.set_defaults(action=parser.print_help, help=True)
+    parser.set_defaults(action=lambda x: parser.print_help())
 
     subparsers = parser.add_subparsers(metavar='<subcommand>')
     parser_acct(subparsers)
@@ -211,12 +211,17 @@ def make_parser(name):
 def main(args, errfile):
     args = make_parser('concorde').parse_args(args[1:])
 
-    if args.help:
-        args.action()
+    action = getattr(args, 'subsubaction',
+                     getattr(args, 'subaction',
+                             getattr(args, 'action',
+                                     None)))
+
+    if action is None:
+        print(args)
         return
 
     try:
-        args.action(args)
+        action(args)
     except ClientError as e:
         print(e.args[0], file=errfile)
 
