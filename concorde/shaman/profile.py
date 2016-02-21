@@ -29,26 +29,30 @@ class Profile:
             json.dump(self._config, f, indent=4)
 
     def _generate_account_key(self, path):
-        print('Generating account key...')
+        print('[account] generating key...')
         key = rsa.generate_private_key(65537, 4096, backend)
         with open(path, 'wb') as f:
             f.write(key.private_bytes(serialization.Encoding.PEM,
                                       serialization.PrivateFormat.PKCS8,
                                       serialization.NoEncryption()))
+        print('[account] done')
+
         return key
 
     def _add_account(self):
         path = 'account_key'
         key = self._generate_account_key(path)
-        print('Creating new account...')
+
+        print('[account] registering...')
         location, _ = self._client.new_registration(key)
-        print('Created new account')
         self._config['account'] = {
             'key': path,
             'key_type': 'pem',
             'registration': location,
         }
         self._write_config()
+        print('[account] done: {}'.format(location))
+
         return location, key
 
     def _check_or_add_account(self):
@@ -73,18 +77,20 @@ class Profile:
         links, account = self._client.registration(key, registration)
         agreement = links.get('terms-of-service', {}).get('url')
         if account.get('agreement') != agreement:
-            print('Auto-accepting {} in 5 seconds...'.format(agreement))
+            print('[account] accepting {} in 5 seconds...'.format(agreement))
             time.sleep(5)
             self._client.registration(key, registration, agreement)
+            print('[account] done')
 
         return key
 
     def _add_authorization(self, name, domain):
-        print('Creating authorization request for ' + name + '...')
+        print('[domain:{}] requesting authz...'.format(name))
         authz, _ = self._client.new_authorization(self._key, 'dns', name)
-        print('Created authorization request for ' + name)
         domain['authorization'] = authz
         self._write_config()
+        print('[domain:{}] done: {}'.format(name, authz))
+
         return authz
 
     def _respond_challenges(self,
@@ -115,8 +121,9 @@ class Profile:
             token             = challenge['token'].encode('ascii')
             thumbprint        = jwk_thumbprint(self._key.public_key())
             key_authorization = token + b'.' + thumbprint
-            print('Authenticating for {} with {}'.format(name,
-                                                         challenge['type']))
+            print('[domain:{}] authenticating with {}...'.format(
+                                                            name,
+                                                            challenge['type']))
             auth = subprocess.Popen([authenticators[challenge['type']]],
                                      stdin=subprocess.PIPE,
                                      stdout=subprocess.DEVNULL)
@@ -124,11 +131,13 @@ class Profile:
             if auth.returncode:
                 raise RuntimeError('Failed to run {}'.format(
                                                             challenge['type']))
-            print('Responding to challenge for ' + name + '...')
+            print('[domain:{}] done'.format(name))
+
+            print('[domain:{}] replying to challenge...'.format(name))
             self._client.challenge(self._key,
                                    challenge['uri'],
                                    key_authorization.decode('ascii'))
-            print('Responded to challenge for ' + name)
+            print('[domain:{}] done'.format(name))
 
     def _check_or_add_authorization(self, name, domain):
         if 'authorization' in domain:
@@ -146,20 +155,23 @@ class Profile:
         elif authz['status'] == 'valid':
             return authorization
         else:
-            print(authorization + ' was ' + authz['status'])
+            print('[domain:{}] authz ({}) was {}'.format(name,
+                                                         authorization,
+                                                         authz['status']))
             authz = self._add_authorization(name, domain)
 
     def _add_domain_key(self, name, domain, path):
-        print('Generating domain key for ' + name)
+        print('[domain:{}] generating key...'.format(name))
         key = rsa.generate_private_key(65537, 4096, backend)
         with open(path, 'wb') as f:
             f.write(key.private_bytes(serialization.Encoding.PEM,
                                       serialization.PrivateFormat.PKCS8,
                                       serialization.NoEncryption()))
-
         domain['key'] = path
         domain['key_type'] = 'pem'
         self._write_config()
+        print('[domain:{}] done'.format(name))
+
         return key
 
     def _check_or_add_domain_key(self, name, domain):
@@ -182,35 +194,39 @@ class Profile:
         if 'certificate' in domain:
             return domain['certificate']
 
-        print('Generating CSR for ' + name)
+        print('[domain:{}] generating CSR...'.format(name))
         builder = x509.CertificateSigningRequestBuilder()
         builder = builder.subject_name(x509.Name([
             x509.NameAttribute(x509.oid.NameOID.COMMON_NAME, name),
         ]))
         csr = builder.sign(key, hashes.SHA256(), backend)
-        print('Requesting certificate for ' + name + '...')
+        print('[domain:{}] done'.format(name))
+
+        print('[domain:{}] requesting certificate...'.format(name))
         certificate = self._client.new_certificate(self._key, csr)
-        print('Requested certificate for ' + name)
         domain['certificate'] = certificate
         self._write_config()
+        print('[domain:{}] done: {}'.format(name, certificate))
+
         return certificate
 
     def _check_cert_validity(self, name, domain, cert):
         renewal = self._config['renewal']
         if cert.not_valid_after - datetime.timedelta(renewal) \
                                                      < datetime.datetime.now():
-            print('Certificate {} will expire within {} days'.format(name,
-                                                                     renewal))
+            print('[domain:{}] cert will expire in {} days'.format(name,
+                                                                   renewal))
             del domain['certificate']
             self._write_config()
 
-            print('Obtaining replacement certificate for ' + name + '...')
+            print('[domain:{}] obtaining replacement certificate...'.format(
+                                                                         name))
             self._check_domain(name, domain)
-            print('Obtained replacement certificate for ' + name)
+            print('[domain:{}] done'.format(name))
 
-            print('Revoking old certificate for ' + name + '...')
+            print('[domain:{}] revoking old certificate...'.format(name))
             self._client.revoke_certificate(self._key, cert)
-            print('Revoked old certificate for ' + name)
+            print('[domain:{}] done'.format(name))
 
     def _check_domain(self, name, domain):
         authorization = self._check_or_add_authorization(name, domain)
@@ -220,16 +236,16 @@ class Profile:
         key  = self._check_or_add_domain_key(name, domain)
         cert = self._check_or_add_cert(name, domain, key, authorization)
 
-        print('Fetching certficate for ' + name + '...')
+        print('[domain:{}] fetching certficate...'.format(name))
         certificate = self._client.get_certificate(cert)
-        print('Fetched certficate for ' + name)
+        print('[domain:{}] done'.format(name))
 
-        print('Checking certificate validity for ' + name)
+        print('[domain:{}] checking certificate validity...'.format(name))
         self._check_cert_validity(name, domain, certificate)
 
-        print('Fetching certficate chain for ' + name + '...')
+        print('[domain:{}] fetching certficate chain...'.format(name))
         chain = self._client.get_certificate_chain(cert)
-        print('Fetched certficate chain for ' + name)
+        print('[domain:{}] done'.format(name))
 
         with open(name + '_full', 'wb') as f:
             f.write(certificate.public_bytes(serialization.Encoding.PEM))
