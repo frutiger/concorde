@@ -1,8 +1,9 @@
 concorde
 ========
 
-A Python 3 client library and commandline tool to interact with an ACME server,
-with only two direct dependencies: 'requests' and 'cryptography'.
+A Python 3 client library, interactive commandline tool and automation
+commandline tool for interacting with an ACME server.  'concorde' has two
+direct dependencies: 'requests' and 'cryptography'.
 
 License
 -------
