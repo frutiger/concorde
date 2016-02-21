@@ -163,7 +163,7 @@ def parser_approve(subparsers):
     subparser = subparsers.add_parser('approve',
                                       help='validate challenges')
     subparser.set_defaults(subaction=approve)
-    subparser.add_argument('--key-type', metavar='<privkey type>',
+    subparser.add_argument('--key-type', metavar='<pubkey type>',
                             choices=['raw', 'pem', 'der'], required=True)
     subparser.add_argument('--pubkey', metavar='<acct pubkey>', required=True,
                            action=MakePubKey)
