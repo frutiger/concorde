@@ -12,7 +12,7 @@ from .commands import acct_create,  acct_status,  acct_update, \
                       authz_create, authz_status, \
                       approve, \
                       challenge_respond, \
-                      cert_sign_request, cert, cert_chain
+                      cert_sign_request, cert, cert_chain, cert_revoke
 
 def raw_loader(path):
     with open(path, 'rb') as f:
@@ -137,6 +137,16 @@ def parser_cert_chain(subsubparsers):
     subsubparser.set_defaults(subsubaction=cert_chain)
     subsubparser.add_argument('certificate', metavar='<certificate>')
 
+def parser_cert_revoke(subsubparsers):
+    subsubparser = subsubparsers.add_parser('revoke',
+                                            help='revoke certificate')
+    subsubparser.set_defaults(subsubaction=cert_revoke)
+    subsubparser.add_argument('--key-type', metavar='<privkey type>',
+                               choices=['raw', 'pem', 'der'], required=True)
+    subsubparser.add_argument('--key', metavar='<acct privkey>', required=True,
+                              action=MakeKey)
+    subsubparser.add_argument('certificate', metavar='<certificate>')
+
 def parser_acct(subparsers):
     subparser = subparsers.add_parser('acct',
                                       help='create and manage accounts')
@@ -200,6 +210,7 @@ def parser_cert(subparsers):
     parser_cert_sign_request(subsubparsers)
     parser_cert_fetch(subsubparsers)
     parser_cert_chain(subsubparsers)
+    parser_cert_revoke(subsubparsers)
 
 def make_parser(name):
     parser = argparse.ArgumentParser(prog=name)

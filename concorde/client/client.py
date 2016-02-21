@@ -144,3 +144,20 @@ class Client:
 
         return x509.load_der_x509_certificate(chain.content, backend)
 
+    def revoke_certificate(self, key, certificate):
+        cert = self.get_certificate(certificate)
+        cert = cert.public_bytes(serialization.Encoding.DER)
+        payload = {
+            'resource':    'revoke-cert',
+            'certificate': acme_safe_b64_encode(cert).decode('ascii'),
+        }
+
+        revocation = requests.post(self._directory['revoke-cert'],
+                                   data=jws_encapsulate(key,
+                                                        self._jws_header(),
+                                                        payload))
+
+        if revocation.status_code != 200:
+            raise ClientError('Certificate revocation failed: {}'.format(
+                                                  revocation.json()['detail']))
+

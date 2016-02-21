@@ -93,3 +93,6 @@ def cert_chain(args):
     cert = args.client.get_certificate_chain(args.certificate)
     sys.stdout.buffer.write(cert.public_bytes(serialization.Encoding.PEM))
 
+def cert_revoke(args):
+    args.client.revoke_certificate(args.key, args.certificate)
+
