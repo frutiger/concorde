@@ -25,9 +25,9 @@ def acct_status(args):
     if 'contact' in response:
         print('Contacts: ' + ', '.join(response['contact']))
     if 'authorizations' in response:
-        print('Authorizations: ' + ', '.join(response['authorizations']))
+        print('Authorizations: ' + response['authorizations'])
     if 'certificates' in response:
-        print('Certificates: ' + ', '.join(response['certificates']))
+        print('Certificates: ' + response['certificates'])
 
 def challenge_type_to_human(type):
     if type == 'http-01':
