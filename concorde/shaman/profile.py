@@ -1,5 +1,6 @@
 # shaman.profile
 
+import datetime
 import json
 import subprocess
 import time
@@ -179,7 +180,6 @@ class Profile:
 
     def _check_or_add_cert(self, name, domain, key, authorization):
         if 'certificate' in domain:
-            # TBD: check for domain expiration
             return domain['certificate']
 
         print('Generating CSR for ' + name)
@@ -195,6 +195,15 @@ class Profile:
         self._write_config()
         return certificate
 
+    def _check_cert_validity(self, name, domain, cert):
+        renewal = self._config['renewal']
+        if cert.not_valid_after - datetime.timedelta(renewal) \
+                                                     < datetime.datetime.now():
+            print('Certificate {} will expire within {} days'.format(name,
+                                                                     renewal))
+            del domain['certificate']
+            self._write_config()
+
     def _check_domain(self, name, domain):
         authorization = self._check_or_add_authorization(name, domain)
         if not authorization:
@@ -205,8 +214,14 @@ class Profile:
 
         print('Fetching certficate for ' + name + '...')
         certificate = self._client.get_certificate(cert)
-        chain       = self._client.get_certificate_chain(cert)
         print('Fetched certficate for ' + name)
+
+        print('Checking certificate validity for ' + name)
+        self._check_cert_validity(name, domain, certificate)
+
+        print('Fetching certficate chain for ' + name + '...')
+        chain = self._client.get_certificate_chain(cert)
+        print('Fetched certficate chain for ' + name)
 
         with open(name + '_full', 'wb') as f:
             f.write(certificate.public_bytes(serialization.Encoding.PEM))
