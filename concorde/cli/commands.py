@@ -5,7 +5,7 @@ import sys
 
 from cryptography.hazmat.primitives import serialization
 
-from ..client import jose
+from ..client.jose import jwk_thumbprint
 
 def acct_create(args):
     # TBD: recovery keys
@@ -74,7 +74,7 @@ Status: {}'''.format(args.authorization, response['status']))
 
 def approve(args):
     token         = args.token.encode(locale.getpreferredencoding())
-    thumbprint    = jose.jwk_thumbprint(args.pubkey)
+    thumbprint    = jwk_thumbprint(args.pubkey)
     authorization = token + b'.' + thumbprint
     print('Key authorization: ' + authorization.decode('ascii'))
 

@@ -3,12 +3,12 @@
 import base64
 import json
 
-import cryptography.hazmat.backends
-import cryptography.hazmat.primitives.asymmetric as asymmetric
-import cryptography.hazmat.primitives.asymmetric.ec as ec
-import cryptography.hazmat.primitives.asymmetric.rsa as rsa
-import cryptography.hazmat.primitives.hashes as hashes
-import cryptography.hazmat.primitives.hmac as hmac
+import cryptography
+from cryptography.hazmat.primitives            import asymmetric
+from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.primitives            import hashes
+from cryptography.hazmat.primitives            import hmac
 
 # TBD: make backend pluggable?
 backend = cryptography.hazmat.backends.default_backend()

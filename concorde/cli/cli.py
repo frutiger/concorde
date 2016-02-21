@@ -1,11 +1,10 @@
 # concorde.cli.cli
 
 import argparse
-import os
 
-import cryptography.x509
-import cryptography.hazmat.primitives.serialization
-import cryptography.hazmat.backends
+import cryptography
+from cryptography                   import x509
+from cryptography.hazmat.primitives import serialization
 
 from ..client  import Client, ClientError
 from .commands import acct_create,  acct_status,  acct_update, \
@@ -13,6 +12,9 @@ from .commands import acct_create,  acct_status,  acct_update, \
                       approve, \
                       challenge_respond, \
                       cert_sign_request, cert, cert_chain, cert_revoke
+
+# TBD: make backend pluggable?
+backend = cryptography.hazmat.backends.default_backend()
 
 def raw_loader(path):
     with open(path, 'rb') as f:
@@ -24,8 +26,6 @@ class MakeClient(argparse.Action):
 
 class MakeKey(argparse.Action):
     def __call__(self, parser, namespace, values, option_string):
-        serialization = cryptography.hazmat.primitives.serialization
-        backend       = cryptography.hazmat.backends.default_backend()
 
         if namespace.key_type == 'raw':
             setattr(namespace, self.dest, raw_loader(values))
@@ -44,8 +44,6 @@ class MakeKey(argparse.Action):
 
 class MakePubKey(argparse.Action):
     def __call__(self, parser, namespace, values, option_string):
-        serialization = cryptography.hazmat.primitives.serialization
-        backend       = cryptography.hazmat.backends.default_backend()
 
         if namespace.key_type == 'raw':
             setattr(namespace, self.dest, raw_loader(values))
@@ -62,12 +60,9 @@ class MakePubKey(argparse.Action):
 
 class MakeCsr(argparse.Action):
     def __call__(self, parser, namespace, values, option_string):
-        backend = cryptography.hazmat.backends.default_backend()
-
         setattr(namespace,
                 self.dest,
-                cryptography.x509.load_pem_x509_csr(raw_loader(values),
-                                                    backend))
+                x509.load_pem_x509_csr(raw_loader(values), backend))
 
 def parser_acct_create(subsubparsers):
     subsubparser = subsubparsers.add_parser('create', help='create accounts')

@@ -1,16 +1,14 @@
 # shaman.profile
 
-import base64
 import json
 import subprocess
 import time
 
-import cryptography.x509                             as x509
-import cryptography.hazmat.backends
-import cryptography.hazmat.primitives.hashes         as hashes
-import cryptography.hazmat.primitives.asymmetric     as asymmetric
-import cryptography.hazmat.primitives.asymmetric.rsa as rsa
-import cryptography.hazmat.primitives.serialization  as serialization
+import cryptography
+from cryptography                              import x509
+from cryptography.hazmat.primitives            import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.primitives            import hashes
 
 from ..client      import Client, ClientError
 from ..client.jose import jwk_thumbprint
