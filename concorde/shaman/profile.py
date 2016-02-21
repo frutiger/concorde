@@ -253,7 +253,10 @@ class Profile:
 
     def _check_domains(self):
         for name, domain in self._config['domains'].items():
-            self._check_domain(name, domain)
+            try:
+                self._check_domain(name, domain)
+            except ClientError as e:
+                print('[domain:{}] ERROR: {}'.format(name, e.args[0]))
 
     def run(self):
         self._key = self._check_or_add_account()
