@@ -3,6 +3,7 @@
 import argparse
 import os
 
+import cryptography.x509
 import cryptography.hazmat.primitives.serialization
 import cryptography.hazmat.backends
 
@@ -61,7 +62,12 @@ class MakePubKey(argparse.Action):
 
 class MakeCsr(argparse.Action):
     def __call__(self, parser, namespace, values, option_string):
-        setattr(namespace, self.dest, raw_loader(values))
+        backend = cryptography.hazmat.backends.default_backend()
+
+        setattr(namespace,
+                self.dest,
+                cryptography.x509.load_pem_x509_csr(raw_loader(values),
+                                                    backend))
 
 def parser_acct_create(subsubparsers):
     subsubparser = subsubparsers.add_parser('create', help='create accounts')

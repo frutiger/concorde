@@ -191,9 +191,7 @@ class Profile:
         ]))
         csr = builder.sign(key, hashes.SHA256(), backend)
         print('Requesting certificate for ' + name + '...')
-        certificate = self._client.new_certificate(
-                                  self._key,
-                                  csr.public_bytes(serialization.Encoding.DER))
+        certificate = self._client.new_certificate(self._key, csr)
         print('Requested certificate for ' + name)
         domain['certificate'] = certificate
         self._write_config()

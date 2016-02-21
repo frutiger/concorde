@@ -4,7 +4,8 @@ import urllib.parse
 
 import cryptography
 import requests
-from cryptography import x509
+from cryptography                   import x509
+from cryptography.hazmat.primitives import serialization
 
 from .jose import jws_encapsulate, acme_safe_b64_encode
 
@@ -102,6 +103,7 @@ class Client:
                                                     response.json()['detail']))
 
     def new_certificate(self, key, csr):
+        csr = csr.public_bytes(serialization.Encoding.DER)
         payload = {
             'resource': 'new-cert',
             'csr':      acme_safe_b64_encode(csr).decode('ascii'),
