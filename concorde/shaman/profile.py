@@ -204,6 +204,14 @@ class Profile:
             del domain['certificate']
             self._write_config()
 
+            print('Obtaining replacement certificate for ' + name + '...')
+            self._check_domain(name, domain)
+            print('Obtained replacement certificate for ' + name)
+
+            print('Revoking old certificate for ' + name + '...')
+            self._client.revoke_certificate(self._key, cert)
+            print('Revoked old certificate for ' + name)
+
     def _check_domain(self, name, domain):
         authorization = self._check_or_add_authorization(name, domain)
         if not authorization:
