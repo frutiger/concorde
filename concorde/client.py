@@ -2,9 +2,14 @@
 
 import urllib.parse
 
+import cryptography
 import requests
+from cryptography import x509
 
 from concorde.jose import jws_encapsulate, acme_safe_b64_encode
+
+# TBD: make backend pluggable?
+backend = cryptography.hazmat.backends.default_backend()
 
 class ClientError(Exception):
     pass
@@ -118,7 +123,7 @@ class Client:
             raise ClientError('Certificate fetch failed: {}'.format(
                                                         cert.json()['detail']))
 
-        return cert.content
+        return x509.load_der_x509_certificate(cert.content, backend)
 
     def get_certificate_chain(self, certificate):
         cert = requests.get(certificate)
@@ -135,5 +140,5 @@ class Client:
             raise ClientError('Certificate chain fetch failed: {}'.format(
                                                         cert.json()['detail']))
 
-        return chain.content
+        return x509.load_der_x509_certificate(chain.content, backend)
 

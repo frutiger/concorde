@@ -3,6 +3,8 @@
 import locale
 import sys
 
+from cryptography.hazmat.primitives import serialization
+
 import concorde.jose
 
 def acct_create(args):
@@ -84,11 +86,10 @@ def cert_sign_request(args):
     print('Certificate: ' + location)
 
 def cert(args):
-    data = args.client.get_certificate(args.certificate)
-    sys.stdout.buffer.write(data)
+    cert = args.client.get_certificate(args.certificate)
+    sys.stdout.buffer.write(cert.public_bytes(serialization.Encoding.PEM))
 
 def cert_chain(args):
-    data = args.client.get_certificate_chain(args.certificate)
-    sys.stdout.buffer.write(data)
-
+    cert = args.client.get_certificate_chain(args.certificate)
+    sys.stdout.buffer.write(cert.public_bytes(serialization.Encoding.PEM))
 
