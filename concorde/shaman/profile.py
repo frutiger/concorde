@@ -138,16 +138,16 @@ class Profile:
             authorization = self._add_authorization(name, domain)
 
         authz = self._client.get_authorization(authorization)
-        if authz['status'] == 'invalid':
-            print(authorization + ' was invalid')
-            authz = self._add_authorization(name, domain)
-        elif authz['status'] == 'pending':
+        if authz['status'] == 'pending':
             self._respond_challenges(name,
                                      authz['challenges'],
                                      authz['combinations'],
                                      domain['authenticators'])
         elif authz['status'] == 'valid':
             return authorization
+        else:
+            print(authorization + ' was ' + authz['status'])
+            authz = self._add_authorization(name, domain)
 
     def _add_domain_key(self, name, domain, path):
         print('Generating domain key for ' + name)
