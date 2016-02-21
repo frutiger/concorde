@@ -1,4 +1,4 @@
-# concorde.cli
+# concorde.cli.cli
 
 import argparse
 import os
@@ -6,12 +6,12 @@ import os
 import cryptography.hazmat.primitives.serialization
 import cryptography.hazmat.backends
 
-from concorde.client import Client, ClientError
-from concorde.commands import acct_create,  acct_status,  acct_update, \
-                              authz_create, authz_status, \
-                              approve, \
-                              challenge_respond, \
-                              cert_sign_request, cert, cert_chain
+from ..client  import Client, ClientError
+from .commands import acct_create,  acct_status,  acct_update, \
+                      authz_create, authz_status, \
+                      approve, \
+                      challenge_respond, \
+                      cert_sign_request, cert, cert_chain
 
 def raw_loader(path):
     with open(path, 'rb') as f:

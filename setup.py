@@ -1,17 +1,25 @@
 from setuptools import setup
 
 setup(name='concorde',
-      version='0.2',
+      version='0.3',
       description='ACME client commandline tool and library',
       url='https://github.com/frutiger/concorde',
       author='Masud Rahman',
       license='MIT',
-      packages=['concorde'],
+      packages=[
+          'concorde',
+          'concorde.client',
+          'concorde.cli',
+          'concorde.shaman',
+      ],
       install_requires=[
           'cryptography',
           'requests',
       ],
       entry_points={
-          'console_scripts': ['concorde=concorde.__main__:main'],
+          'console_scripts': [
+              'concorde=concorde.cli.__main__:main',
+              'shaman=concorde.shaman.__main__:main',
+          ],
       })
 

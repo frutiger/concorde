@@ -1,4 +1,4 @@
-# concorde.jose
+# concorde.client.jose
 
 import base64
 import json

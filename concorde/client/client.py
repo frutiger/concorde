@@ -1,4 +1,4 @@
-# concorde.client
+# concorde.client.client
 
 import urllib.parse
 
@@ -6,7 +6,7 @@ import cryptography
 import requests
 from cryptography import x509
 
-from concorde.jose import jws_encapsulate, acme_safe_b64_encode
+from .jose import jws_encapsulate, acme_safe_b64_encode
 
 # TBD: make backend pluggable?
 backend = cryptography.hazmat.backends.default_backend()

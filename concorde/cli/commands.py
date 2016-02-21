@@ -1,11 +1,11 @@
-# concorde.commands
+# concorde.cli.commands
 
 import locale
 import sys
 
 from cryptography.hazmat.primitives import serialization
 
-import concorde.jose
+from ..client import jose
 
 def acct_create(args):
     # TBD: recovery keys
@@ -74,7 +74,7 @@ Status: {}'''.format(args.authorization, response['status']))
 
 def approve(args):
     token         = args.token.encode(locale.getpreferredencoding())
-    thumbprint    = concorde.jose.jwk_thumbprint(args.pubkey)
+    thumbprint    = jose.jwk_thumbprint(args.pubkey)
     authorization = token + b'.' + thumbprint
     print('Key authorization: ' + authorization.decode('ascii'))
 
