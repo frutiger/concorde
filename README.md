@@ -164,6 +164,17 @@ Many of the above commands require additional arguments, they can be some of:
 --pubkey <path>
 ```
 
+## Installation
+
+Install the latest tagged release:
+
+```bash
+$ pip install git+https://github.com/frutiger/concorde.git@latest
+```
+
+This will install the `concorde` and `shaman` scripts into Python's binary
+path.
+
 ## License
 
 Copyright (C) 2016 Masud Rahman
