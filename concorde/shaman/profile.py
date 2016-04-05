@@ -157,7 +157,7 @@ class Profile:
         elif authz['status'] == 'valid':
             return authorization
         else:
-            log('domain:{}'.format(name), 'authz ({}) was {}'.format(name,
+            log('domain:{}'.format(name), 'authz ({}) was {}'.format(
                                                          authorization,
                                                          authz['status']))
             authz = self._add_authorization(name, domain)
@@ -188,7 +188,7 @@ class Profile:
             elif domain['key_type'] == 'der':
                 return serialization.load_der_private_key(data, None, backend)
             else:
-                raise RuntimeError('Unknown key type: ' + account['key_type'])
+                raise RuntimeError('Unknown key type: ' + domain['key_type'])
         else:
             return self._add_domain_key(name, domain, name + '_key')
 
