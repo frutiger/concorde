@@ -129,8 +129,7 @@ echo $key_authorization > /mnt/acme-challenge/$token
 
 ### Logs
 
-`shaman` logs its actions to standard output, in `cron` jobs, the output is
-typically redirected to somewhere appropriate.
+`shaman` logs its actions to '/dev/log' using the 'syslog' protocol.
 
 ## Commandline tool
 
