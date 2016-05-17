@@ -217,7 +217,7 @@ class Profile:
             x509.NameAttribute(x509.oid.NameOID.COMMON_NAME, name),
         ]))
         csr = builder.sign(key, hashes.SHA256(), backend)
-        self._log('domain:{}: done')
+        self._log('domain:{}: done', name)
 
         self._log('domain:{}: requesting certificate...', name)
         certificate = self._client.new_certificate(self._key, csr)
@@ -231,7 +231,7 @@ class Profile:
         renewal = self._config['renewal']
         if cert.not_valid_after - datetime.timedelta(renewal) \
                                                      < datetime.datetime.now():
-            self._log('domain:{}: cert will expire in {} days',
+            self._log('domain:{}: renewing cert that will expire in {} days',
                       name,
                       renewal,
                       level=logging.WARN)
