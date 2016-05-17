@@ -36,7 +36,7 @@ class Profile:
             self._logger.setLevel(logging.INFO)
 
     def _log(self, message, *args, level=logging.INFO, **kwargs):
-        self._logger.log(level, message.format(*args))
+        self._logger.log(level, message.format(*args), **kwargs)
 
     def _write_config(self):
         with open(self._filename, 'w') as f:
