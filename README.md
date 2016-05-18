@@ -37,6 +37,7 @@ The minimal file should look something like this:
 ```json
 {
     "server": "https://acme-v01.api.letsencrypt.org/directory",
+    "quieter": true,
     "renewal": 10,
     "domains": {
         "example.com": {
@@ -85,6 +86,9 @@ will do:
             1. check if its expiry is within `renewal` number of days.  If:
                 * it is:
                     1. generate a new CSR and obtain a new certificate.
+
+The optional `quieter` entry will cause `shaman` to only log important events:
+terms of service acceptance and certificate expiry.
 
 ### Authenticators
 
