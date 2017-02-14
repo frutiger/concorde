@@ -245,6 +245,7 @@ class Profile:
             self._log('domain:{}: revoking old certificate...', name)
             self._client.revoke_certificate(self._key, cert)
             self._log('domain:{}: done', name)
+            return True
 
     def _check_domain(self, name, domain):
         authorization = self._check_or_add_authorization(name, domain)
@@ -259,7 +260,8 @@ class Profile:
         self._log('domain:{}: done', name)
 
         self._log('domain:{}: checking certificate validity...', name)
-        self._check_cert_validity(name, domain, certificate)
+        if self._check_cert_validity(name, domain, certificate):
+            return
 
         self._log('domain:{}: fetching certficate chain...', name)
         chain = self._client.get_certificate_chain(cert)
