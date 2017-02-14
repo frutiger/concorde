@@ -24,7 +24,6 @@ logHandler.setFormatter(
                        logging.Formatter('%(levelname)s %(name)s %(message)s'))
 logging.getLogger().addHandler(logHandler)
 
-
 class Profile:
     def __init__(self):
         self._filename = 'shaman.json'
