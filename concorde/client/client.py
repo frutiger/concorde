@@ -82,6 +82,12 @@ class Client:
 
     def get_authorization(self, authorization):
         authz = requests.get(authorization)
+
+        if authz.status_code == 404:
+            return {
+                'status': None
+            }
+
         if authz.status_code != 200:
             raise ClientError('Authorization status failed: {}'.format(
                                                        authz.json()['detail']))
