@@ -153,7 +153,7 @@ def jws_encapsulate(key,
     protected = jws_safe_obj(header)
     payload   = jws_safe_obj(payload)
     signer.update(protected + b'.' + payload)
-    signature = base64.urlsafe_b64encode(signer.finalize())
+    signature = acme_safe_b64_encode(signer.finalize())
 
     return json.dumps({
         'protected': protected.decode('ascii'),
