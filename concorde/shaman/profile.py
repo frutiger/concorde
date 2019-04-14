@@ -29,18 +29,19 @@ logHandler.setFormatter(
                        logging.Formatter('%(levelname)s %(name)s %(message)s'))
 logging.getLogger().addHandler(logHandler)
 
+logger = logging.getLogger(__name__)
+
 class Profile:
     def __init__(self):
         self._filename = 'shaman.json'
         with open(self._filename) as f:
             self._config = json.load(f)
         self._client = Client(self._config['server'])
-        self._logger = logging.getLogger(__name__)
         if not self._config.get('quieter', False):
-            self._logger.setLevel(logging.INFO)
+            logger.setLevel(logging.INFO)
 
     def _log(self, message, *args, level=logging.INFO, **kwargs):
-        self._logger.log(level, message.format(*args), **kwargs)
+        logger.log(level, message.format(*args), **kwargs)
 
     def _write_config(self):
         with open(self._filename, 'w') as f:
