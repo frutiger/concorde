@@ -280,9 +280,12 @@ class Profile:
             try:
                 self._check_domain(name, domain)
             except ClientError as e:
-                self._log('domain:{}', name, level=logging.ERROR, exc_info=e)
+                self._log('domain:{}: {}', name, e.args[0], level=logging.ERROR)
 
     def run(self):
-        self._key = self._check_or_add_account()
-        self._check_domains()
+        try:
+            self._key = self._check_or_add_account()
+            self._check_domains()
+        except ClientError as e:
+            self._log('error: {}', e.args[0], level=logging.ERROR)
 
