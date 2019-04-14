@@ -246,9 +246,6 @@ class Profile:
             self._check_domain(name, domain)
             self._log('domain:{}: done', name)
 
-            self._log('domain:{}: revoking old certificate...', name)
-            self._client.revoke_certificate(self._key, cert)
-            self._log('domain:{}: done', name)
             return True
 
     def _check_domain(self, name, domain):
