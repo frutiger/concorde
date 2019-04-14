@@ -37,8 +37,7 @@ class Profile:
         with open(self._filename) as f:
             self._config = json.load(f)
         self._client = Client(self._config['server'])
-        if not self._config.get('quieter', False):
-            logger.setLevel(logging.INFO)
+        logging.getLogger().setLevel(self._config.get('logThreshold', 30))
 
     def _log(self, message, *args, level=logging.INFO, **kwargs):
         logger.log(level, message.format(*args), **kwargs)
