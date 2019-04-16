@@ -133,8 +133,8 @@ def jws_encapsulate(key,
     elif isinstance(key, rsa.RSAPrivateKey):
         if padder == asymmetric.padding.PSS:
             algorithm = 'PS' + suffix
-            signer = key.signer(padder(padding.MGF1(digest()),
-                                       padder.MAX_LENGTH).
+            signer = key.signer(padder(asymmetric.padding.MGF1(digest()),
+                                       padder.MAX_LENGTH),
                                 digest())
         elif padder == asymmetric.padding.PKCS1v15:
             algorithm = 'RS' + suffix
