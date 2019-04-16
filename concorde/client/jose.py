@@ -126,19 +126,13 @@ def jws_encapsulate(key,
 
     if isinstance(key, bytes):
         algorithm = 'HS' + suffix
-        signer = hmac.HMAC(key, digest(), backend)
     elif isinstance(key, ec.EllipticCurvePrivateKey):
         algorithm = 'ES' + suffix
-        signer = key.signer(ec.ECDSA(digest()))
     elif isinstance(key, rsa.RSAPrivateKey):
         if padder == asymmetric.padding.PSS:
             algorithm = 'PS' + suffix
-            signer = key.signer(padder(asymmetric.padding.MGF1(digest()),
-                                       padder.MAX_LENGTH),
-                                digest())
         elif padder == asymmetric.padding.PKCS1v15:
             algorithm = 'RS' + suffix
-            signer = key.signer(padder(), digest())
         else:
             raise ValueError('RFC 7518 non-compliant padding: ' + \
                              str(type(padder)))
@@ -152,8 +146,29 @@ def jws_encapsulate(key,
 
     protected = jws_safe_obj(header)
     payload   = jws_safe_obj(payload)
-    signer.update(protected + b'.' + payload)
-    signature = acme_safe_b64_encode(signer.finalize())
+    message   = protected + b'.' + payload
+
+    if isinstance(key, bytes):
+        signer = hmac.HMAC(key, digest(), backend)
+        signer.update(message)
+        signature = signer.finalize()
+    elif isinstance(key, ec.EllipticCurvePrivateKey):
+        signature = key.sign(message, ec.ECDSA(digest()))
+    elif isinstance(key, rsa.RSAPrivateKey):
+        if padder == asymmetric.padding.PSS:
+            signature = key.sign(message,
+                                 padder(asymmetric.padding.MGF1(digest()),
+                                        padder.MAX_LENGTH),
+                                 digest())
+        elif padder == asymmetric.padding.PKCS1v15:
+            signature = key.sign(message, padder(), digest())
+        else:
+            raise ValueError('RFC 7518 non-compliant padding: ' + \
+                             str(type(padder)))
+    else:
+        raise ValueError('RFC 7518 non-compliant key: ' + str(type(key)))
+
+    signature = acme_safe_b64_encode(signature)
 
     return json.dumps({
         'protected': protected.decode('ascii'),
