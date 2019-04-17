@@ -169,10 +169,10 @@ Many of the above commands require additional arguments, they can be some of:
 
 ## Installation
 
-Install the latest tagged release:
+Install via pip:
 
 ```bash
-$ pip install git+https://github.com/frutiger/concorde.git@latest
+$ python3 -m pip install git+https://github.com/frutiger/concorde.git
 ```
 
 This will install the `concorde` and `shaman` scripts into Python's binary
