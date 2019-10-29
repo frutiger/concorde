@@ -84,9 +84,10 @@ class Client:
         authz = requests.get(authorization)
 
         if authz.status_code == 404:
-            return {
-                'status': None
-            }
+            # special case, expired authorizations return a 404 but are not
+            # considered as errors: the returned data contains detailed
+            # information
+            return authz.json()
 
         if authz.status_code != 200:
             raise ClientError('Authorization status failed: {}'.format(

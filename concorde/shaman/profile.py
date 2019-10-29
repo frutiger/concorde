@@ -177,7 +177,7 @@ class Profile:
             self._log('domain:{}: authz ({}) was {}',
                       name,
                       authorization,
-                      authz,
+                      authz['detail'],
                       level=logging.WARN)
             authz = self._add_authorization(name, domain)
 
