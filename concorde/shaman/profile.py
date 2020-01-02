@@ -1,9 +1,11 @@
 # shaman.profile
 
 import datetime
+import io
 import json
 import logging
 import logging.handlers
+import os
 import subprocess
 import time
 
@@ -234,6 +236,23 @@ class Profile:
 
             return True
 
+    def _update_cert(self, name, certificate, chain):
+        new_chain = io.BytesIO()
+        new_chain.write(certificate.public_bytes(serialization.Encoding.PEM))
+        new_chain.write(chain.public_bytes(serialization.Encoding.PEM))
+
+        needs_write = True
+        if os.path.exists(name + '_full'):
+            with open(name + '_full', 'rb') as f:
+                existing_chain_data = f.read()
+            if new_chain.getvalue() == existing_chain_data:
+                needs_write = False
+
+        if needs_write:
+            self._log('domain:{}: updating certificate', name)
+            with open(name + '_full', 'wb') as f:
+                f.write(new_chain.getvalue())
+
     def _check_domain(self, name, domain):
         authorization = self._check_or_add_authorization(name, domain)
         if not authorization:
@@ -248,10 +267,7 @@ class Profile:
 
         chain = self._client.get_certificate_chain(cert)
 
-        with open(name + '_full', 'wb') as f:
-            self._log('domain:{}: updating certificate', name)
-            f.write(certificate.public_bytes(serialization.Encoding.PEM))
-            f.write(chain.public_bytes(serialization.Encoding.PEM))
+        self._update_cert(name, certificate, chain)
 
     def _check_domains(self):
         for name, domain in self._config['domains'].items():
