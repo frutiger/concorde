@@ -273,7 +273,7 @@ class Profile:
         for name, domain in self._config['domains'].items():
             try:
                 self._check_domain(name, domain)
-            except ClientError as e:
+            except (ClientError, IOError) as e:
                 self._log('domain:{}: {}', name, e.args[0], level=logging.ERROR)
 
     def run(self):
