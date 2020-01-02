@@ -37,7 +37,7 @@ class Profile:
         with open(self._filename) as f:
             self._config = json.load(f)
         self._client = Client(self._config['server'])
-        logging.getLogger().setLevel(self._config.get('logThreshold', 30))
+        logging.getLogger().setLevel(self._config.get('logThreshold', 20))
 
     def _log(self, message, *args, level=logging.INFO, **kwargs):
         logger.log(level, message.format(*args), **kwargs)
@@ -53,7 +53,6 @@ class Profile:
             f.write(key.private_bytes(serialization.Encoding.PEM,
                                       serialization.PrivateFormat.PKCS8,
                                       serialization.NoEncryption()))
-        self._log('account: done')
 
         return key
 
@@ -69,7 +68,6 @@ class Profile:
             'registration': location,
         }
         self._write_config()
-        self._log('account: done: {}', location)
 
         return location, key
 
@@ -95,12 +93,9 @@ class Profile:
         links, account = self._client.registration(key, registration)
         agreement = links.get('terms-of-service', {}).get('url')
         if account.get('agreement') != agreement:
-            self._log('account: accepting {} in 5 seconds...',
-                      agreement,
-                      level=logging.WARN)
+            self._log('account: accepting {} in 5 seconds...', agreement)
             time.sleep(5)
             self._client.registration(key, registration, agreement)
-            self._log('account: done')
 
         return key
 
@@ -109,7 +104,6 @@ class Profile:
         authz, _ = self._client.new_authorization(self._key, 'dns', name)
         domain['authorization'] = authz
         self._write_config()
-        self._log('domain:{}: done: {}', name, authz)
 
         return authz
 
@@ -150,13 +144,11 @@ class Profile:
             auth.communicate(input=token + b'\n' + key_authorization + b'\n')
             if auth.returncode:
                 raise RuntimeError('Failed to run {}', challenge['type'])
-            self._log('domain:{}: done', name)
 
             self._log('domain:{}: replying to challenge...', name)
             self._client.challenge(self._key,
                                    challenge['uri'],
                                    key_authorization.decode('ascii'))
-            self._log('domain:{}: done', name)
 
     def _check_or_add_authorization(self, name, domain):
         if 'authorization' in domain:
@@ -177,8 +169,7 @@ class Profile:
             self._log('domain:{}: authz ({}) was {}',
                       name,
                       authorization,
-                      authz['detail'],
-                      level=logging.WARN)
+                      authz['detail'])
             authz = self._add_authorization(name, domain)
 
     def _add_domain_key(self, name, domain, path):
@@ -191,7 +182,6 @@ class Profile:
         domain['key'] = path
         domain['key_type'] = 'pem'
         self._write_config()
-        self._log('domain:{}: done', name)
 
         return key
 
@@ -221,13 +211,11 @@ class Profile:
             x509.NameAttribute(x509.oid.NameOID.COMMON_NAME, name),
         ]))
         csr = builder.sign(key, hashes.SHA256(), backend)
-        self._log('domain:{}: done', name)
 
         self._log('domain:{}: requesting certificate...', name)
         certificate = self._client.new_certificate(self._key, csr)
         domain['certificate'] = certificate
         self._write_config()
-        self._log('domain:{}: done: {}', name, certificate)
 
         return certificate
 
@@ -235,16 +223,14 @@ class Profile:
         renewal = self._config['renewal']
         if cert.not_valid_after - datetime.timedelta(renewal) \
                                                      < datetime.datetime.now():
-            self._log('domain:{}: renewing cert that will expire in {} days',
+            self._log('domain:{}: cert will expire in {} days',
                       name,
-                      renewal,
-                      level=logging.WARN)
+                      renewal)
             del domain['certificate']
             self._write_config()
 
             self._log('domain:{}: obtaining replacement certificate...', name)
             self._check_domain(name, domain)
-            self._log('domain:{}: done', name)
 
             return True
 
@@ -256,19 +242,14 @@ class Profile:
         key  = self._check_or_add_domain_key(name, domain)
         cert = self._check_or_add_cert(name, domain, key, authorization)
 
-        self._log('domain:{}: fetching certficate...', name)
         certificate = self._client.get_certificate(cert)
-        self._log('domain:{}: done', name)
-
-        self._log('domain:{}: checking certificate validity...', name)
         if self._check_cert_validity(name, domain, certificate):
             return
 
-        self._log('domain:{}: fetching certficate chain...', name)
         chain = self._client.get_certificate_chain(cert)
-        self._log('domain:{}: done', name)
 
         with open(name + '_full', 'wb') as f:
+            self._log('domain:{}: updating certificate', name)
             f.write(certificate.public_bytes(serialization.Encoding.PEM))
             f.write(chain.public_bytes(serialization.Encoding.PEM))
 
