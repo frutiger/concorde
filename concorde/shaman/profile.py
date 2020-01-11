@@ -153,26 +153,22 @@ class Profile:
                                    key_authorization.decode('ascii'))
 
     def _check_or_add_authorization(self, name, domain):
+        authz = None
         if 'authorization' in domain:
-            # TBD: check authorization expiry
             authorization = domain['authorization']
-        else:
-            authorization = self._add_authorization(name, domain)
+            authz = self._client.get_authorization(authorization)
+            if authz['status'] != 'pending' and authz['status'] != 'valid':
+                self._log('domain:{}: authz ({}) was {}',
+                          name,
+                          authorization,
+                          authz['detail'])
+                authz = None
 
-        authz = self._client.get_authorization(authorization)
-        if authz['status'] == 'pending':
-            self._respond_challenges(name,
-                                     authz['challenges'],
-                                     authz['combinations'],
-                                     domain['authenticators'])
-        elif authz['status'] == 'valid':
-            return authorization
-        else:
-            self._log('domain:{}: authz ({}) was {}',
-                      name,
-                      authorization,
-                      authz['detail'])
-            authz = self._add_authorization(name, domain)
+        if authz == None:
+            authorization = self._add_authorization(name, domain)
+            authz         = self._client.get_authorization(authorization)
+
+        return authz
 
     def _add_domain_key(self, name, domain, path):
         self._log('domain:{}: generating key...', name)
@@ -203,7 +199,7 @@ class Profile:
         else:
             return self._add_domain_key(name, domain, name + '_key')
 
-    def _check_or_add_cert(self, name, domain, key, authorization):
+    def _check_or_add_cert(self, name, domain, key):
         if 'certificate' in domain:
             return domain['certificate']
 
@@ -254,12 +250,15 @@ class Profile:
                 f.write(new_chain.getvalue())
 
     def _check_domain(self, name, domain):
-        authorization = self._check_or_add_authorization(name, domain)
-        if not authorization:
-            return
+        authz = self._check_or_add_authorization(name, domain)
+        if authz['status'] == 'pending':
+            self._respond_challenges(name,
+                                     authz['challenges'],
+                                     authz['combinations'],
+                                     domain['authenticators'])
 
         key  = self._check_or_add_domain_key(name, domain)
-        cert = self._check_or_add_cert(name, domain, key, authorization)
+        cert = self._check_or_add_cert(name, domain, key)
 
         certificate = self._client.get_certificate(cert)
         if self._check_cert_validity(name, domain, certificate):
