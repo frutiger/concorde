@@ -49,12 +49,12 @@ class Profile:
             json.dump(self._config, f, indent=4)
 
     def _generate_account_key(self, path):
-        self._log('account: generating key...')
         key = rsa.generate_private_key(65537, 4096, backend)
         with open(path, 'wb') as f:
             f.write(key.private_bytes(serialization.Encoding.PEM,
                                       serialization.PrivateFormat.PKCS8,
                                       serialization.NoEncryption()))
+        self._log('account: generated key {}', path)
 
         return key
 
@@ -62,7 +62,6 @@ class Profile:
         path = 'account_key'
         key = self._generate_account_key(path)
 
-        self._log('account: registering...')
         location, _ = self._client.new_registration(key)
         self._config['account'] = {
             'key': path,
@@ -70,6 +69,7 @@ class Profile:
             'registration': location,
         }
         self._write_config()
+        self._log('account: registered account {}', location)
 
         return location, key
 
@@ -98,14 +98,15 @@ class Profile:
             self._log('account: accepting {} in 5 seconds...', agreement)
             time.sleep(5)
             self._client.registration(key, registration, agreement)
+            self._log('account: accepted')
 
         return key
 
     def _add_authorization(self, name, domain):
-        self._log('domain:{}: requesting authz...', name)
         authz, _ = self._client.new_authorization(self._key, 'dns', name)
         domain['authorization'] = authz
         self._write_config()
+        self._log('domain:{}: got authz: {}', name, authz)
 
         return authz
 
@@ -137,20 +138,20 @@ class Profile:
             token             = challenge['token'].encode('ascii')
             thumbprint        = jwk_thumbprint(self._key.public_key())
             key_authorization = token + b'.' + thumbprint
-            self._log('domain:{}: authenticating with {}...',
-                      name,
-                      challenge['type'])
             auth = subprocess.Popen([authenticators[challenge['type']]],
                                      stdin=subprocess.PIPE,
                                      stdout=subprocess.DEVNULL)
             auth.communicate(input=token + b'\n' + key_authorization + b'\n')
             if auth.returncode:
                 raise RuntimeError('Failed to run {}', challenge['type'])
+            self._log('domain:{}: authenticated with {}',
+                      name,
+                      challenge['type'])
 
-            self._log('domain:{}: replying to challenge...', name)
             self._client.challenge(self._key,
                                    challenge['uri'],
                                    key_authorization.decode('ascii'))
+            self._log('domain:{}: replied to challenge', name)
 
     def _check_or_add_authorization(self, name, domain):
         authz = None
@@ -171,7 +172,6 @@ class Profile:
         return authz
 
     def _add_domain_key(self, name, domain, path):
-        self._log('domain:{}: generating key...', name)
         key = rsa.generate_private_key(65537, 4096, backend)
         with open(path, 'wb') as f:
             f.write(key.private_bytes(serialization.Encoding.PEM,
@@ -180,6 +180,7 @@ class Profile:
         domain['key'] = path
         domain['key_type'] = 'pem'
         self._write_config()
+        self._log('domain:{}: generated key {}', name, path)
 
         return key
 
@@ -203,17 +204,17 @@ class Profile:
         if 'certificate' in domain:
             return domain['certificate']
 
-        self._log('domain:{}: generating CSR...', name)
         builder = x509.CertificateSigningRequestBuilder()
         builder = builder.subject_name(x509.Name([
             x509.NameAttribute(x509.oid.NameOID.COMMON_NAME, name),
         ]))
         csr = builder.sign(key, hashes.SHA256(), backend)
+        self._log('domain:{}: generated CSR', name)
 
-        self._log('domain:{}: requesting certificate...', name)
         certificate = self._client.new_certificate(self._key, csr)
         domain['certificate'] = certificate
         self._write_config()
+        self._log('domain:{}: got certificate: {}', name, certificate)
 
         return certificate
 
@@ -245,9 +246,9 @@ class Profile:
                 needs_write = False
 
         if needs_write:
-            self._log('domain:{}: updating certificate', name)
             with open(name + '_full', 'wb') as f:
                 f.write(new_chain.getvalue())
+            self._log('domain:{}: updated certificate', name)
 
     def _check_domain(self, name, domain):
         authz = self._check_or_add_authorization(name, domain)
@@ -280,5 +281,5 @@ class Profile:
             self._key = self._check_or_add_account()
             self._check_domains()
         except ClientError as e:
-            self._log('error: {}', e.args[0], level=logging.ERROR)
+            self._log('{}', e.args[0], level=logging.ERROR)
 
