@@ -1,35 +1,20 @@
 # shaman.profile
 
 import datetime
-import io
 import json
 import logging
 import logging.handlers
 import os
 import subprocess
-import time
 
-import cryptography
-from cryptography                              import x509
-from cryptography.hazmat.primitives            import serialization
-from cryptography.hazmat.primitives.asymmetric import rsa
-from cryptography.hazmat.primitives            import hashes
+from ..crypto import secp256r1, x509
+from ..client import Client, ClientError
 
-from ..client      import Client, ClientError
-from ..client.jose import jwk_thumbprint
+formatter = logging.Formatter('%(levelname)s %(name)s %(message)s')
 
-# TBD: make backend pluggable?
-backend = cryptography.hazmat.backends.default_backend()
-
-logHandler = logging.handlers.SysLogHandler('/dev/log')
-logHandler.setFormatter(
-                       logging.Formatter('%(levelname)s %(name)s %(message)s'))
-logging.getLogger().addHandler(logHandler)
-
-logHandler = logging.StreamHandler()
-logHandler.setFormatter(
-                       logging.Formatter('%(levelname)s %(name)s %(message)s'))
-logging.getLogger().addHandler(logHandler)
+outHandler = logging.StreamHandler()
+outHandler.setFormatter(formatter)
+logging.getLogger().addHandler(outHandler)
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +23,6 @@ class Profile:
         self._filename = 'shaman.json'
         with open(self._filename) as f:
             self._config = json.load(f)
-        self._client = Client(self._config['server'])
         logging.getLogger().setLevel(self._config.get('logThreshold', 20))
 
     def _log(self, message, *args, level=logging.INFO, **kwargs):
@@ -46,181 +30,107 @@ class Profile:
 
     def _write_config(self):
         with open(self._filename, 'w') as f:
-            json.dump(self._config, f, indent=4)
+            json.dump(self._config, f, indent=4, sort_keys=True)
 
-    def _generate_account_key(self, path):
-        key = rsa.generate_private_key(65537, 4096, backend)
-        with open(path, 'wb') as f:
-            f.write(key.private_bytes(serialization.Encoding.PEM,
-                                      serialization.PrivateFormat.PKCS8,
-                                      serialization.NoEncryption()))
-        self._log('account: generated key {}', path)
+    def _get_or_make_key(self, config, name):
+        if 'key' in config:
+            with open(config['key'], 'rb') as f:
+                key = secp256r1.from_file(f)
+        else:
+            key = secp256r1.make_key()
 
+            path = name + '.key.priv.pem'
+            with open(path, 'wb') as f:
+                secp256r1.to_file(key, f)
+            config['key'] = path
+            self._write_config()
         return key
+
+    def _make_client(self):
+        acct_key = self._get_or_make_key(self._config, 'account')
+        self._client = Client(self._config['server'], acct_key)
+
+    def _check_or_add_domain_key(self, name, domain):
+        return self._get_or_make_key(domain, name)
 
     def _add_account(self):
-        path = 'account_key'
-        key = self._generate_account_key(path)
-
-        location, _ = self._client.new_registration(key)
-        self._config['account'] = {
-            'key': path,
-            'key_type': 'pem',
-            'registration': location,
-        }
+        acct_id, _ = self._client.new_account()
+        self._config['account_id'] = acct_id
         self._write_config()
-        self._log('account: registered account {}', location)
+        self._log('account: registered account @ {}', acct_id)
 
-        return location, key
+        return acct_id
 
     def _check_or_add_account(self):
-        if 'account' in self._config:
-            account = self._config['account']
-            with open(account['key'], 'rb') as f:
-                data = f.read()
-
-            if account['key_type'] == 'raw':
-                key = data
-            elif account['key_type'] == 'pem':
-                key = serialization.load_pem_private_key(data, None, backend)
-            elif account['key_type'] == 'der':
-                key = serialization.load_der_private_key(data, None, backend)
-            else:
-                raise RuntimeError('Unknown key type: ' + account['key_type'])
-
-            registration = account['registration']
+        if 'account_id' in self._config:
+            acct_id = self._config['account_id']
         else:
-            registration, key = self._add_account()
+            acct_id = self._add_account()
+        self._client.set_account_id(acct_id)
 
-        links, account = self._client.registration(key, registration)
-        agreement = links.get('terms-of-service', {}).get('url')
-        if account.get('agreement') != agreement:
-            self._log('account: accepting {} in 5 seconds...', agreement)
-            time.sleep(5)
-            self._client.registration(key, registration, agreement)
-            self._log('account: accepted')
-
-        return key
-
-    def _add_authorization(self, name, domain):
-        authz, _ = self._client.new_authorization(self._key, 'dns', name)
-        domain['authorization'] = authz
+    def _add_order(self, name, domain):
+        order_id, order = self._client.new_order([{
+            'type':   'dns',
+            'value':  name,
+        }])
+        domain['order_id'] = order_id
         self._write_config()
-        self._log('domain:{}: got authz: {}', name, authz)
+        self._log('domain:{}: got order @ {}', name, order_id)
 
-        return authz
+        return order_id, order
 
     def _respond_challenges(self,
                             name,
                             challenges,
-                            combinations,
                             authenticators):
-        requirements = []
-        for combination in combinations:
-            requirement = []
-            for challenge in combination:
-                requirement.append(challenges[challenge])
-            requirements.append(requirement)
-
-        for requirement in requirements:
-            if all(c['type'] in authenticators for c in requirement):
-                break
-        else:
-            human_error = ' or '.join(' and '.join(c['type'] for c in r) \
-                                                         for r in requirements)
-            raise RuntimeError('No available authenticators for challenge. ' +
-                               'Needed: ' + human_error)
-
-        for challenge in requirement:
+        for challenge in challenges:
             if challenge['status'] != 'pending':
                 continue
 
-            token             = challenge['token'].encode('ascii')
-            thumbprint        = jwk_thumbprint(self._key.public_key())
-            key_authorization = token + b'.' + thumbprint
-            auth = subprocess.Popen([authenticators[challenge['type']]],
+            chal_type = challenge['type']
+            if chal_type not in authenticators:
+                continue
+
+            url = challenge['url']
+            token, key_auth = self._client.authorize_challenge(url)
+            auth = subprocess.Popen([authenticators[chal_type]],
                                      stdin=subprocess.PIPE,
                                      stdout=subprocess.DEVNULL)
-            auth.communicate(input=token + b'\n' + key_authorization + b'\n')
+            auth.communicate(input=token + b'\n' + key_auth + b'\n')
             if auth.returncode:
-                raise RuntimeError('Failed to run {}', challenge['type'])
-            self._log('domain:{}: authenticated with {}',
-                      name,
-                      challenge['type'])
+                raise RuntimeError('Failed to run {}', chal_type)
+            self._log('domain:{}: authenticated with {}', name, chal_type)
 
-            self._client.challenge(self._key,
-                                   challenge['uri'],
-                                   key_authorization.decode('ascii'))
+            self._client.validate_challenge(url)
             self._log('domain:{}: replied to challenge', name)
 
-    def _check_or_add_authorization(self, name, domain):
-        authz = None
-        if 'authorization' in domain:
-            authorization = domain['authorization']
-            authz = self._client.get_authorization(authorization)
-            if authz['status'] != 'pending' and authz['status'] != 'valid':
-                self._log('domain:{}: authz ({}) was {}',
-                          name,
-                          authorization,
-                          authz['detail'])
-                authz = None
-
-        if authz == None:
-            authorization = self._add_authorization(name, domain)
-            authz         = self._client.get_authorization(authorization)
-
-        return authz
-
-    def _add_domain_key(self, name, domain, path):
-        key = rsa.generate_private_key(65537, 4096, backend)
-        with open(path, 'wb') as f:
-            f.write(key.private_bytes(serialization.Encoding.PEM,
-                                      serialization.PrivateFormat.PKCS8,
-                                      serialization.NoEncryption()))
-        domain['key'] = path
-        domain['key_type'] = 'pem'
-        self._write_config()
-        self._log('domain:{}: generated key {}', name, path)
-
-        return key
-
-    def _check_or_add_domain_key(self, name, domain):
-        if 'key' in domain:
-            with open(domain['key'], 'rb') as f:
-                data = f.read()
-
-            if domain['key_type'] == 'raw':
-                return data
-            elif domain['key_type'] == 'pem':
-                return serialization.load_pem_private_key(data, None, backend)
-            elif domain['key_type'] == 'der':
-                return serialization.load_der_private_key(data, None, backend)
-            else:
-                raise RuntimeError('Unknown key type: ' + domain['key_type'])
+            break
         else:
-            return self._add_domain_key(name, domain, name + '_key')
+            types = ' or '.join(c['type'] for c in challenges)
+            raise RuntimeError('Failed to find authenticator for ' + name +
+                               ' needed: ' + types)
 
-    def _check_or_add_cert(self, name, domain, key):
-        if 'certificate' in domain:
-            return domain['certificate']
+    def _check_or_add_order(self, name, domain):
+        order = None
 
-        builder = x509.CertificateSigningRequestBuilder()
-        builder = builder.subject_name(x509.Name([
-            x509.NameAttribute(x509.oid.NameOID.COMMON_NAME, name),
-        ]))
-        csr = builder.sign(key, hashes.SHA256(), backend)
-        self._log('domain:{}: generated CSR', name)
+        if 'order_id' in domain:
+            order_id = domain['order_id']
+            order = self._client.get(order_id)
+            if order['status'] not in { 'pending', 'ready', 'valid' }:
+                self._log('domain:{}: order @ {} was {}',
+                          name,
+                          order_id,
+                          order)
+                order = None
 
-        certificate = self._client.new_certificate(self._key, csr)
-        domain['certificate'] = certificate
-        self._write_config()
-        self._log('domain:{}: got certificate: {}', name, certificate)
+        if order == None:
+            order_id, order = self._add_order(name, domain)
 
-        return certificate
+        return order_id, order
 
     def _check_cert_validity(self, name, domain, cert):
         renewal = self._config['renewal']
-        if cert.not_valid_after - datetime.timedelta(renewal) \
+        if x509.get_expiry(cert) - datetime.timedelta(renewal) \
                                                      < datetime.datetime.now():
             self._log('domain:{}: cert will expire in {} days',
                       name,
@@ -232,53 +142,65 @@ class Profile:
             self._check_domain(name, domain)
 
             return True
+        return False
 
-    def _update_cert(self, name, certificate, chain):
-        new_chain = io.BytesIO()
-        new_chain.write(certificate.public_bytes(serialization.Encoding.PEM))
-        new_chain.write(chain.public_bytes(serialization.Encoding.PEM))
-
+    def _update_cert(self, name, certificate):
+        path = name + '.cert.pub.pem'
         needs_write = True
-        if os.path.exists(name + '_full'):
-            with open(name + '_full', 'rb') as f:
-                existing_chain_data = f.read()
-            if new_chain.getvalue() == existing_chain_data:
+        if os.path.exists(path):
+            with open(path, 'rb') as f:
+                existing_cert = f.read()
+            if certificate == existing_cert:
                 needs_write = False
 
         if needs_write:
-            with open(name + '_full', 'wb') as f:
-                f.write(new_chain.getvalue())
-            self._log('domain:{}: updated certificate', name)
+            self._log('domain:{}: updating certificate', name)
+            with open(path, 'wb') as f:
+                f.write(certificate)
 
     def _check_domain(self, name, domain):
-        authz = self._check_or_add_authorization(name, domain)
-        if authz['status'] == 'pending':
-            self._respond_challenges(name,
-                                     authz['challenges'],
-                                     authz['combinations'],
-                                     domain['authenticators'])
+        key = self._check_or_add_domain_key(name, domain)
+        order_id, order = self._check_or_add_order(name, domain)
 
-        key  = self._check_or_add_domain_key(name, domain)
-        cert = self._check_or_add_cert(name, domain, key)
+        # TBD: check other order states
+        if order['status'] == 'pending':
+            # TBD: check other authorizations?
+            authz_id = order['authorizations'][0]
 
-        certificate = self._client.get_certificate(cert)
-        if self._check_cert_validity(name, domain, certificate):
-            return
+            authz = self._client.get(authz_id)
+            if authz['status'] == 'pending':
+                self._respond_challenges(name,
+                                         authz['challenges'],
+                                         domain['authenticators'])
+                # poll for the authz status next time
+                return
+            # TBD: handle other 'authz' states?
+        elif order['status'] == 'ready':
+            self._client.finalize_order(order_id, key, [name])
+        elif order['status'] == 'valid':
+            certificate_id = order['certificate']
+            domain['certificate'] = certificate_id
+            self._write_config()
 
-        chain = self._client.get_certificate_chain(cert)
+            certificate = self._client.get_order_certificate(order_id)
+            certificate = certificate.encode('ascii')
 
-        self._update_cert(name, certificate, chain)
+            self._update_cert(name, certificate)
+            self._check_cert_validity(name, domain, certificate)
 
     def _check_domains(self):
         for name, domain in self._config['domains'].items():
             try:
                 self._check_domain(name, domain)
-            except (ClientError, IOError) as e:
+            except ClientError as e:
                 self._log('domain:{}: {}', name, e.args[0], level=logging.ERROR)
+            except IOError as e:
+                self._log('domain:{}: {}', name, e, level=logging.ERROR)
 
     def run(self):
         try:
-            self._key = self._check_or_add_account()
+            self._make_client()
+            self._check_or_add_account()
             self._check_domains()
         except ClientError as e:
             self._log('{}', e.args[0], level=logging.ERROR)

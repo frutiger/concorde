@@ -1,98 +1,70 @@
 # concorde.cli.commands
 
-import locale
+import json
 import sys
 
-from cryptography.hazmat.primitives import serialization
+from ..crypto import secp256r1
 
-from ..client.jose import jwk_thumbprint
+def print_object(type, id, object):
+    print('{}: {}'.format(type, id))
+    json.dump(object, sys.stdout, indent=2, separators=(',', ': '))
+    print()
+
+def print_account(id, account):
+    del account['key']
+    del account['ID']
+    print_object('Account', id, account)
+
+def key_create(args) -> None:
+    key = secp256r1.make_key()
+    with open(args.path, 'wb') as f:
+        secp256r1.to_file(key, f)
 
 def acct_create(args):
-    # TBD: recovery keys
-    location, response = args.client.new_registration(args.key)
-    print('Account: ' + location)
+    account_id, account = args.client.new_account(args.contacts)
+    print_account(account_id, account)
 
 def acct_update(args):
-    args.client.registration(args.key, args.account, args.agreement)
+    account = args.client.update_account(args.contacts)
+    print_account(args.client.get_account_id(), account)
 
 def acct_status(args):
-    links, response = args.client.registration(args.key, args.account)
-    print('Account: ' + args.account)
-    if response.get('agreement') != \
-                                  links.get('terms-of-service', {}).get('url'):
-        print('Awaiting Terms of Service acceptance: ' + \
-                                      links.get('terms-of-service').get('url'))
-    if 'contact' in response:
-        print('Contacts: ' + ', '.join(response['contact']))
-    if 'authorizations' in response:
-        print('Authorizations: ' + response['authorizations'])
-    if 'certificates' in response:
-        print('Certificates: ' + response['certificates'])
+    account_id, account = args.client.get_account()
+    print_account(account_id, account)
 
-def challenge_type_to_human(type):
-    if type == 'http-01':
-        return 'HTTP'
-    if type == 'dns-01':
-        return 'DNS'
-    if type == 'tls-sni-01':
-        return 'TLS SNI'
-    return type
+def order_create(args):
+    order_id, order = args.client.new_order(args.identifiers)
+    print_object('Order', order_id, order)
 
-def human_to_challenge_type(type):
-    if type == 'HTTP':
-        return 'http-01'
-    if type == 'DNS':
-        return 'dns-01'
-    if type == 'TLS ':
-        return 'tls-sni-01'
-    return type
+def order_status(args):
+    order = args.client.get(args.order_id)
+    print_object('Order', args.order_id, order)
 
-def print_authz(authz):
-    for i, challenge in enumerate(authz['challenges']):
-        print('''Challenge {}:
-{human_type} [{status}]: {token} to {uri}
-'''.format(i,
-           human_type=challenge_type_to_human(challenge['type']),
-           **challenge))
-    combinations = authz['combinations']
-    requirements = [' and '.join(map(str, c)) for c in combinations]
-    print('Needed: {}'.format(' or '.join(requirements)))
+def order_authz(args):
+    order = args.client.get(args.order_id)
+    authz_id = order['authorizations'][args.index]
+    authz = args.client.get(authz_id)
+    print_object('Authorization', authz_id, authz)
 
-def authz_create(args):
-    location, response = args.client.new_authorization(args.key,
-                                                       args.type,
-                                                       args.value)
-    print('Authorization: ' + location)
+def order_finalize(args):
+    order = args.client.finalize_order(args.order_id,
+                                       args.key,
+                                       args.names)
+    print_object('Order', args.order_id, order)
 
-def authz_status(args):
-    response = args.client.get_authorization(args.authorization)
-    print('''Authorization: {}
-Status: {}'''.format(args.authorization, response['status']))
-    if response['status'] != 'valid':
-        print()
-        print_authz(response)
+def order_get_cert(args):
+    certificate = args.client.get_order_certificate(args.order_id)
+    print(certificate, end='')
 
-def approve(args):
-    token         = args.token.encode(locale.getpreferredencoding())
-    thumbprint    = jwk_thumbprint(args.pubkey)
-    authorization = token + b'.' + thumbprint
-    print('Key authorization: ' + authorization.decode('ascii'))
+def challenge_status(args):
+    challenge = args.client.get(args.challenge_id)
+    print_object('Challenge', args.challenge_id, challenge)
 
-def challenge_respond(args):
-    args.client.challenge(args.key, args.challenge, args.key_authorization)
+def challenge_authorize(args):
+    _, key_auth = args.client.authorize_challenge(args.challenge_id)
+    print('Key authorization: ' + key_auth.decode('ascii'))
 
-def cert_sign_request(args):
-    location = args.client.new_certificate(args.key, args.csr)
-    print('Certificate: ' + location)
-
-def cert(args):
-    cert = args.client.get_certificate(args.certificate)
-    sys.stdout.buffer.write(cert.public_bytes(serialization.Encoding.PEM))
-
-def cert_chain(args):
-    cert = args.client.get_certificate_chain(args.certificate)
-    sys.stdout.buffer.write(cert.public_bytes(serialization.Encoding.PEM))
-
-def cert_revoke(args):
-    args.client.revoke_certificate(args.key, args.certificate)
+def challenge_validate(args):
+    challenge = args.client.validate_challenge(args.challenge_id)
+    print_object('Challenge', args.challenge_id, challenge)
 

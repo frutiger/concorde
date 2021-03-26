@@ -1,6 +1,6 @@
 # concorde
 
-`concorde` is three things:
+`concorde` is an ACMEv2 client in three parts:
 
 1. `concorde.shaman`: a fully automated tool designed to sign TLS certificates
    with minimal setup required
@@ -14,8 +14,12 @@
 `concorde` has a lightweight dependency footprint: its immediate dependencies
 are the `cryptography` and `requests` libraries.  `concorde` also completely
 defers authenticating authorization challenges to external programs.  This
-allows it to not require any knowledge of how the authentication is to proceed
-and thus does not require any special privileges to run.
+allows it to run without requiring any special privileges.
+
+`concorde` does not allow flexibility in choice of the signature algorithms
+used for account keys nor domain keys.  It also prefers PEM format for
+persisting these to disk.  This is intended to reduce the possibility of using
+poor algorithm choices.
 
 ## Shaman
 
@@ -36,8 +40,7 @@ The minimal file should look something like this:
 
 ```json
 {
-    "server": "https://acme-v01.api.letsencrypt.org/directory",
-    "quieter": true,
+    "server": "https://acme-v02.api.letsencrypt.org/directory",
     "renewal": 10,
     "domains": {
         "example.com": {
@@ -52,54 +55,74 @@ The minimal file should look something like this:
 Each piece in the configuration will be explained, by outlining what `shaman`
 will do:
 
-1. look for an `account` block.  If:
+1. look for a `key` property.  If:
     * it doesn't exist:
-        1. generate a new account private key
-        2. create a new account on the specified `server`
-        3. print the URL of an agreement if appropriate allowing the user to
-           opt-out before auto-accepting
-        4. save the key path, key type, and registration URL so this step can be
-           skipped in the future
-2. for each entry in the `domain` block:
-    1. look for an `authorization` entry.  If:
+        1. generate a new SECP256R1 account private key
+        1. write that key to disk
+        1. create a `key` property that refers to the location from the
+           previous step
+    * it does exist:
+        1. skip to the next step
+1. look for an `account_id` property.  If:
+    * it doesn't exist:
+        1. create a new account on the specified `server` with the account key
+        1. create an `account_id` property that refers to the location of the
+           account created in the previous step
+    * it does exist:
+        1. skip to the next step
+1. for each entry in the `domain` block:
+    1. look for a `key` property.  If:
         * it doesn't exist:
-            1. use the `account` key to request an authorization for the given
-               domain
-            2. use the available `authenticators` and account public key to
-               respond to the first combination of challenges from the server
-            3. save the authorization URL so this step can be skipped in the
-               future.
+            1. generate a new SECP256R1 domain private key
+            1. write that key to disk
+            1. create a `key` property that refers to the location from the
+               previous step
         * it does exist:
-            1.  check if the authorization is still valid.
-                * if it isn't:
-                    1. obtain a new authorization as above.
-    2. look for a `key` entry.  If:
+            1. skip to the next step
+    1. look for an `order_id` entry.  If:
         * it doesn't exist:
-            1. generate a new private key for the domain as `<domain>_key`
-            2. save the key path and key type so this step can be skipped.
-    3. look for a `certificate` entry.  If:
-        * it doesn't exist:
-            1. generate a new CSR for the domain and request the server to sign
-               it
-            2. save the certificate URL so this step can be skipped
+            1. create a new order having a single identifier of type DNS and
+               a value corresponding to the domain name of this `domain` entry
         * it does exist:
-            1. check if its expiry is within `renewal` number of days.  If:
-                * it is:
-                    1. generate a new CSR and obtain a new certificate.
+            1. skip to the next step
+    1. get the order object corresponding to the `order_id` from the previous
+       step.  If its status is:
+        * `pending`, then:
+            1. select the first authorization in this order object
+            1. get the challenge objects corresponding to that authorization
+            1. for each challenge in the authorization:
+                1. load the challenge object corresponding to the
+                   `challenge_id` from the previous step. If its status is:
+                    * `pending`, then:
+                        1. authorize the challenge using the account key
+                        1. invoke the specified `authenticator` for this domain
+                        1. validate the challenge
+                    * otherwise skip this step
+        * `ready`, then:
+            1. finalize this order object with this domain name
+        * `valid`, then:
+            1. get the certificate from this order object
+            1. add a `certificate_id` entry for this domain
+            1. update the certificate on disk (only if the contents have
+               changed)
+            1. check if the certificate will expire before `renewal` days.  If:
+                * it will, then:
+                    1. erase the `certificate_id` entry from this domain
+                    1. repeat the entire step for this domain block anew
 
-The optional `quieter` entry will cause `shaman` to only log important events:
-terms of service acceptance and certificate expiry.
+The optional `logThreshold` can control the logging level used. It defaults to
+`20`, but can be set to `10` or lower for more verbose logging.
 
 ### Authenticators
 
 Since `shaman` defers to 'authenticators' it doesn't need any special
 privileges to prove domain ownership, however it does mean that some additional
 set up is required.  An authenticator is invoked with no arguments.  Data is
-supplied to its standard input as follows:
+supplied to its standard input as follows (where `<LF>` is the ASCII Line Feed
+character or the `0x0A` octet):
 
 ```
-<token>LF
-<key_authorization>LF
+<token><LF><key_authorization><LF>
 ```
 
 The authenticator is expected to perform whatever action is appropriate and
@@ -133,7 +156,8 @@ echo $key_authorization > /mnt/acme-challenge/$token
 
 ### Logs
 
-`shaman` logs its actions to '/dev/log' using the 'syslog' protocol.
+`shaman` logs its actions to '/dev/log' using the 'syslog' protocol as well as
+to standard out.
 
 ## Commandline tool
 
@@ -145,26 +169,23 @@ be done.
 The tool has built-in help, but an overview of its commands are listed below:
 
 ```
-concorde acct create
-concorde acct status <acct>
-concorde acct update <acct>
-concorde authz create
-concorde authz status <authz>
-concorde approve <token>
-concorde challenge respond <challenge> <key authorization>
-concorde cert sign-req <csr>
-concorde cert fetch <cert>
-concorde cert chain <cert>
-concorde cert revoke <cert>
-```
+concorde keys create <path>
 
-Many of the above commands require additional arguments, they can be some of:
+concorde unreg <key> <server> create
+concorde unreg <key> <server> status
 
-```
---server <url>
---key-type [ PEM | DER ]
---key <path>
---pubkey <path>
+concorde reg <key> <account id> <server> acct status
+concorde reg <key> <account id> <server> acct update
+
+concorde reg <key> <account id> <server> order create <type>|<value> [<type>|value>...]
+concorde reg <key> <account id> <server> order status <order_id>
+concorde reg <key> <account id> <server> order get-authz <order_id> <index>
+concorde reg <key> <account id> <server> order finalize <order_id> <key> <value> [<value>...]
+concorde reg <key> <account id> <server> order get-cert <order_id>
+
+concorde reg <key> <account id> <server> challenge <challenge_id> status
+concorde reg <key> <account id> <server> challenge <challenge_id> authorize
+concorde reg <key> <account id> <server> challenge <challenge_id> validate
 ```
 
 ## Installation

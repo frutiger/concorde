@@ -1,169 +1,175 @@
 # concorde.client.client
 
-import urllib.parse
+import json
 
 import cryptography
 import requests
 from cryptography                   import x509
-from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives import hashes, serialization
 
-from .jose import jws_encapsulate, acme_safe_b64_encode
+from . import acme
 
-# TBD: make backend pluggable?
+import cryptography.hazmat.backends
 backend = cryptography.hazmat.backends.default_backend()
 
 class ClientError(Exception):
     pass
 
 class Client:
-    def __init__(self, url):
-        directory = requests.get(url)
+    def __init__(self, url, key=None, account_id=None):
+        self._nonce      = None
+        self._key        = key
+        self._account_id = account_id
+
+        self._session = requests.Session()
+        self._session.headers['content-type'] = 'application/jose+json'
+
+        directory = self._session.get(url)
         directory.raise_for_status()
-        self._url       = url
         self._directory = directory.json()
 
-    def _jws_header(self):
-        return {
-            'nonce': requests.head(self._url).headers['Replay-Nonce'],
+    def set_account_id(self, account_id):
+        if self._account_id != None:
+            raise ClientError('Account already set to {}'.format(
+                                                             self._account_id))
+        self._account_id = account_id
+
+    def get_account_id(self, account_id):
+        if self._account_id == None:
+            raise ClientError('Account not yet set')
+        return self._account_id
+        self._account_id = account_id
+
+    def _needs_account_id(method):
+        def result(self, *args, **kwargs):
+            if self._account_id == None:
+                raise ClientError('An account ID is required for this '
+                                  'operation')
+            return method(self, *args, **kwargs)
+        return result
+
+    def _post(self, resource, payload=None):
+        if self._nonce == None:
+            nonce_url = self._directory['newNonce']
+            new_nonce = self._session.head(nonce_url)
+            new_nonce.raise_for_status()
+            self._nonce = new_nonce.headers['Replay-Nonce']
+
+        url = self._directory.get(resource, resource)
+
+        header = {
+            'nonce': self._nonce,
+            'url':   url,
         }
+        if self._account_id != None:
+            header['kid'] = self._account_id
 
-    def new_registration(self, key):
-        # tbd: recovery
-        payload = {
-            'resource': 'new-reg',
-        }
-        new_reg = requests.post(self._directory['new-reg'],
-                                data=jws_encapsulate(key,
-                                                     self._jws_header(),
-                                                     payload))
-        if new_reg.status_code != 201:
-            raise ClientError('New registration failed: {}'.format(
-                                                     new_reg.json()['detail']))
+        data     = acme.sign(self._key, header, payload)
+        response = self._session.post(url, json.dumps(data).encode('ascii'))
 
-        return new_reg.headers['Location'], new_reg.json()
+        error_kind = None
+        if 400 <= response.status_code < 500:
+            error_kind = 'User'
+        elif 500 <= response.status_code:
+            error_kind = 'Server'
+        if error_kind:
+            if response.text:
+                detail = response.json()['detail']
+            else:
+                detail = response.reason
+            raise ClientError('{} Error: {}'.format(error_kind, detail))
 
-    def registration(self, key, registration, agreement=None, contacts=None):
-        payload = {
-            'resource': 'reg',
-        }
-        if agreement:
-            payload['agreement'] = agreement
-        if contacts:
-            payload['contact'] = contacts
+        self._nonce = response.headers['Replay-Nonce']
+        return response
 
-        reg = requests.post(registration,
-                            data=jws_encapsulate(key,
-                                                 self._jws_header(),
-                                                 payload))
-        if reg.status_code != 202:
-            raise ClientError('Registration status/update failed: {}'.format(
-                                                         reg.json()['detail']))
+    @_needs_account_id
+    def get(self, resource_id):
+        return self._post(resource_id).json()
 
-        return reg.links, reg.json()
+    def new_account(self, contacts=None):
+        account = self._post('newAccount', {
+            'contact':              contacts,
+            'termsOfServiceAgreed': True,
+        })
 
-    def new_authorization(self, key, type, value):
-        payload = {
-            'resource': 'new-authz',
-            'identifier': {
-                'type':  type,
-                'value': value,
-            }
-        }
-        new_authz = requests.post(self._directory['new-authz'],
-                                  data=jws_encapsulate(key,
-                                                       self._jws_header(),
-                                                       payload))
+        if account.status_code == 200:
+            raise ClientError('Account creation failed, account already exists'
+                              ' with key')
 
-        if new_authz.status_code != 201:
-            raise ClientError('New authorization request failed: {}'.format(
-                                                   new_authz.json()['detail']))
+        if account.status_code == 201:
+            return account.headers['Location'], account.json()
 
-        return new_authz.headers['Location'], new_authz.json()
+    def _get_account_with_key(self):
+        account = self._post('newAccount', {
+            'onlyReturnExisting': True,
+        })
 
-    def get_authorization(self, authorization):
-        authz = requests.get(authorization)
+        return account.headers['Location'], account.json()
 
-        if authz.status_code == 404:
-            # special case, expired authorizations return a 404 but are not
-            # considered as errors: the returned data contains detailed
-            # information
-            return authz.json()
+    @_needs_account_id
+    def _get_account_with_id(self):
+        account = self._post(self._account_id, {
+            'onlyReturnExisting': True,
+        })
 
-        if authz.status_code != 200:
-            raise ClientError('Authorization status failed: {}'.format(
-                                                       authz.json()['detail']))
+        return account.json()
 
-        return authz.json()
+    def get_account(self):
+        if self._account_id == None:
+            return self._get_account_with_key()
+        else:
+            return self._account_id, self._get_account_with_id()
 
-    def challenge(self, key, challenge, key_authorization):
-        payload = {
-            'resource':         'challenge',
-            'keyAuthorization': key_authorization,
-        }
-        response = requests.post(challenge,
-                                 data=jws_encapsulate(key,
-                                                      self._jws_header(),
-                                                      payload))
+    @_needs_account_id
+    def update_account(self, contacts=None):
+        account = self._post(self._account_id, {
+            'contact':            contacts,
+            'onlyReturnExisting': True,
+        })
 
-        if response.status_code != 202:
-            raise ClientError('Challenge response failed: {}'.format(
-                                                    response.json()['detail']))
+        return account.json()
 
-    def new_certificate(self, key, csr):
+    @_needs_account_id
+    def new_order(self, identifiers):
+        order = self._post('newOrder', {
+            'identifiers': identifiers,
+        })
+
+        return order.headers['Location'], order.json()
+
+    @_needs_account_id
+    def finalize_order(self, order_id, key, names):
+        builder = x509.CertificateSigningRequestBuilder()
+        builder = builder.subject_name(x509.Name(
+            [x509.NameAttribute(x509.oid.NameOID.COMMON_NAME, names[0])]
+        ))
+        builder = builder.add_extension(x509.SubjectAlternativeName(
+            [x509.DNSName(name) for name in names]
+        ), critical=True)
+        csr = builder.sign(key, hashes.SHA256(), backend)
         csr = csr.public_bytes(serialization.Encoding.DER)
-        payload = {
-            'resource': 'new-cert',
-            'csr':      acme_safe_b64_encode(csr).decode('ascii'),
-        }
-        new_cert = requests.post(self._directory['new-cert'],
-                                 data=jws_encapsulate(key,
-                                                      self._jws_header(),
-                                                      payload))
+        csr = acme.safe_b64_encode(csr).decode('ascii')
 
-        if new_cert.status_code != 201:
-            raise ClientError('Certificate request failed: {}'.format(
-                                                    new_cert.json()['detail']))
+        order = self._post(self._post(order_id).json()['finalize'], {
+            'csr': csr,
+        })
 
-        return new_cert.headers['Location']
+        return order.json()
 
-    def get_certificate(self, certificate):
-        cert = requests.get(certificate)
-        if cert.status_code != 200:
-            raise ClientError('Certificate fetch failed: {}'.format(
-                                                        cert.json()['detail']))
+    @_needs_account_id
+    def get_order_certificate(self, order_id):
+        certificate_id = self._post(order_id).json()['certificate']
+        certificate    = self._post(certificate_id)
+        return certificate.text
 
-        return x509.load_der_x509_certificate(cert.content, backend)
+    @_needs_account_id
+    def authorize_challenge(self, challenge_id):
+        token    = self._post(challenge_id).json()['token'].encode('ascii')
+        key_auth = token + b'.' + acme.thumbprint(self._key.public_key())
+        return token, key_auth
 
-    def get_certificate_chain(self, certificate):
-        cert = requests.get(certificate)
-        if cert.status_code != 200:
-            raise ClientError('Certificate fetch failed: {}'.format(
-                                                        cert.json()['detail']))
-
-        if 'up' not in cert.links:
-            return
-
-        chain_url = urllib.parse.urljoin(certificate, cert.links['up']['url'])
-        chain = requests.get(chain_url)
-        if chain.status_code != 200:
-            raise ClientError('Certificate chain fetch failed: {}'.format(
-                                                        cert.json()['detail']))
-
-        return x509.load_der_x509_certificate(chain.content, backend)
-
-    def revoke_certificate(self, key, certificate):
-        cert = certificate.public_bytes(serialization.Encoding.DER)
-        payload = {
-            'resource':    'revoke-cert',
-            'certificate': acme_safe_b64_encode(cert).decode('ascii'),
-        }
-
-        revocation = requests.post(self._directory['revoke-cert'],
-                                   data=jws_encapsulate(key,
-                                                        self._jws_header(),
-                                                        payload))
-
-        if revocation.status_code != 200:
-            raise ClientError('Certificate revocation failed: {}'.format(
-                                                  revocation.json()['detail']))
+    @_needs_account_id
+    def validate_challenge(self, challenge_id):
+        challenge = self._post(challenge_id, {})
+        return challenge.json()
 
