@@ -10,11 +10,6 @@ def print_object(type, id, object):
     json.dump(object, sys.stdout, indent=2, separators=(',', ': '))
     print()
 
-def print_account(id, account):
-    del account['key']
-    del account['ID']
-    print_object('Account', id, account)
-
 def key_create(args) -> None:
     key = secp256r1.make_key()
     with open(args.path, 'wb') as f:
@@ -22,15 +17,15 @@ def key_create(args) -> None:
 
 def acct_create(args):
     account_id, account = args.client.new_account(args.contacts)
-    print_account(account_id, account)
+    print_object('Account', account_id, account)
 
 def acct_update(args):
     account = args.client.update_account(args.contacts)
-    print_account(args.client.get_account_id(), account)
+    print_object('Account', args.client.get_account_id(), account)
 
 def acct_status(args):
     account_id, account = args.client.get_account()
-    print_account(account_id, account)
+    print_object('Account', account_id, account)
 
 def order_create(args):
     order_id, order = args.client.new_order(args.identifiers)
