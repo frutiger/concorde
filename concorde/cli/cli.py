@@ -2,7 +2,7 @@
 
 import argparse
 
-from ..crypto  import secp256r1
+from ..crypto  import secp384r1
 from ..client  import Client, ClientError
 from .commands import \
         key_create, \
@@ -20,7 +20,7 @@ class MakeClient(argparse.Action):
 class MakeKey(argparse.Action):
     def __call__(self, parser, namespace, values, option_string):
         with open(values, 'rb') as f:
-            setattr(namespace, self.dest, secp256r1.from_file(f))
+            setattr(namespace, self.dest, secp384r1.from_file(f))
 
 class MakeIdentifiers(argparse.Action):
     def __call__(self, parser, namespace, values, option_string):

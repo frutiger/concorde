@@ -33,12 +33,15 @@ def jws_safe_obj(obj):
 
 def pubkey_to_jwk(key):
     if isinstance(key, ec.EllipticCurvePublicKey):
-        if not isinstance(key.curve, ec.SECP256R1):
+        if isinstance(key.curve, ec.SECP384R1):
+            curve = 'P-384'
+        else:
             raise ValueError(f'Unsupported curve type: {key.curve.name}')
+
         numbers = key.public_numbers()
         return {
             'kty': 'EC',
-            'crv': 'P-256',
+            'crv': curve,
             'x':   uint_to_jwk(numbers.x),
             'y':   uint_to_jwk(numbers.y),
         }
@@ -52,9 +55,10 @@ def thumbprint(pubkey):
 
 def sign(key, header, payload):
     if isinstance(key, ec.EllipticCurvePrivateKey):
-        if not isinstance(key.curve, ec.SECP256R1):
+        if isinstance(key.curve, ec.SECP384R1):
+            header['alg'] = 'ES384'
+        else:
             raise ValueError(f'Unsupported curve type: {key.curve.name}')
-        header['alg'] = 'ES256'
     else:
         raise ValueError('Unsupported key type: ' + str(type(key)))
 
@@ -66,10 +70,10 @@ def sign(key, header, payload):
     message   = protected + b'.' + payload
 
     if isinstance(key, ec.EllipticCurvePrivateKey):
-        if not isinstance(key.curve, ec.SECP256R1):
+        if isinstance(key.curve, ec.SECP384R1):
+            signature = key.sign(message, ec.ECDSA(hashes.SHA384()))
+        else:
             raise ValueError(f'Unsupported curve type: {key.curve.name}')
-        header['alg'] = 'ES256'
-        signature = key.sign(message, ec.ECDSA(hashes.SHA256()))
         r, s = utils.decode_dss_signature(signature)
         signature = safe_b64_encode(uint_to_bytes(r) + uint_to_bytes(s))
     else:

@@ -7,7 +7,7 @@ import logging.handlers
 import os
 import subprocess
 
-from ..crypto import secp256r1, x509
+from ..crypto import secp384r1, x509
 from ..client import Client, ClientError
 
 formatter = logging.Formatter('%(levelname)s %(name)s %(message)s')
@@ -35,13 +35,13 @@ class Profile:
     def _get_or_make_key(self, config, name):
         if 'key' in config:
             with open(config['key'], 'rb') as f:
-                key = secp256r1.from_file(f)
+                key = secp384r1.from_file(f)
         else:
-            key = secp256r1.make_key()
+            key = secp384r1.make_key()
 
             path = name + '.key.priv.pem'
             with open(path, 'wb') as f:
-                secp256r1.to_file(key, f)
+                secp384r1.to_file(key, f)
             config['key'] = path
             self._write_config()
         return key

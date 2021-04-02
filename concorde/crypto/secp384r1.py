@@ -1,4 +1,4 @@
-# concorde.crpyto.secp256r1
+# concorde.crpyto.secp384r1
 
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives            import serialization
@@ -7,7 +7,7 @@ import cryptography.hazmat.backends
 backend = cryptography.hazmat.backends.default_backend()
 
 def make_key():
-    return ec.generate_private_key(ec.SECP256R1, backend)
+    return ec.generate_private_key(ec.SECP384R1, backend)
 
 def to_file(key, f):
     f.write(key.private_bytes(serialization.Encoding.PEM,

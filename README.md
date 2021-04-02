@@ -57,7 +57,7 @@ will do:
 
 1. look for a `key` property.  If:
     * it doesn't exist:
-        1. generate a new SECP256R1 account private key
+        1. generate a new SECP384R1 account private key
         1. write that key to disk
         1. create a `key` property that refers to the location from the
            previous step
@@ -73,7 +73,7 @@ will do:
 1. for each entry in the `domain` block:
     1. look for a `key` property.  If:
         * it doesn't exist:
-            1. generate a new SECP256R1 domain private key
+            1. generate a new SECP384R1 domain private key
             1. write that key to disk
             1. create a `key` property that refers to the location from the
                previous step

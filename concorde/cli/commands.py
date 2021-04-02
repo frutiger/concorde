@@ -3,7 +3,7 @@
 import json
 import sys
 
-from ..crypto import secp256r1
+from ..crypto import secp384r1
 
 def print_object(type, id, object):
     print(f'{type}: {id}')
@@ -11,9 +11,9 @@ def print_object(type, id, object):
     print()
 
 def key_create(args) -> None:
-    key = secp256r1.make_key()
+    key = secp384r1.make_key()
     with open(args.path, 'wb') as f:
-        secp256r1.to_file(key, f)
+        secp384r1.to_file(key, f)
 
 def acct_create(args):
     account_id, account = args.client.new_account(args.contacts)
