@@ -30,8 +30,7 @@ class Client:
 
     def set_account_id(self, account_id):
         if self._account_id != None:
-            raise ClientError('Account already set to {}'.format(
-                                                             self._account_id))
+            raise ClientError(f'Account already set to {self._account_id}')
         self._account_id = account_id
 
     def get_account_id(self, account_id):
@@ -77,7 +76,7 @@ class Client:
                 detail = response.json()['detail']
             else:
                 detail = response.reason
-            raise ClientError('{} Error: {}'.format(error_kind, detail))
+            raise ClientError(f'{error_kind} Error: {detail}')
 
         self._nonce = response.headers['Replay-Nonce']
         return response

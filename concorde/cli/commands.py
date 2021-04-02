@@ -6,7 +6,7 @@ import sys
 from ..crypto import secp256r1
 
 def print_object(type, id, object):
-    print('{}: {}'.format(type, id))
+    print(f'{type}: {id}')
     json.dump(object, sys.stdout, indent=2, separators=(',', ': '))
     print()
 

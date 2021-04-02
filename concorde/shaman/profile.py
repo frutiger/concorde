@@ -25,8 +25,8 @@ class Profile:
             self._config = json.load(f)
         logging.getLogger().setLevel(self._config.get('logThreshold', 20))
 
-    def _log(self, message, *args, level=logging.INFO, **kwargs):
-        logger.log(level, message.format(*args), **kwargs)
+    def _log(self, message, level=logging.INFO):
+        logger.log(level, message)
 
     def _write_config(self):
         with open(self._filename, 'w') as f:
@@ -57,7 +57,7 @@ class Profile:
         acct_id, _ = self._client.new_account()
         self._config['account_id'] = acct_id
         self._write_config()
-        self._log('account: registered account @ {}', acct_id)
+        self._log(f'account: registered account @ {acct_id}')
 
         return acct_id
 
@@ -75,7 +75,7 @@ class Profile:
         }])
         domain['order_id'] = order_id
         self._write_config()
-        self._log('domain:{}: got order @ {}', name, order_id)
+        self._log(f'domain:{name}: got order @ {order_id}')
 
         return order_id, order
 
@@ -98,11 +98,11 @@ class Profile:
                                      stdout=subprocess.DEVNULL)
             auth.communicate(input=token + b'\n' + key_auth + b'\n')
             if auth.returncode:
-                raise RuntimeError('Failed to run {}', chal_type)
-            self._log('domain:{}: authenticated with {}', name, chal_type)
+                raise RuntimeError(f'Failed to run {chal_type}')
+            self._log(f'domain:{name}: authenticated with {chal_type}')
 
             self._client.validate_challenge(url)
-            self._log('domain:{}: replied to challenge', name)
+            self._log(f'domain:{name}: replied to challenge')
 
             break
         else:
@@ -117,10 +117,8 @@ class Profile:
             order_id = domain['order_id']
             order = self._client.get(order_id)
             if order['status'] not in { 'pending', 'ready', 'valid' }:
-                self._log('domain:{}: order @ {} was {}',
-                          name,
-                          order_id,
-                          order)
+                self._log(f'domain:{name}: order @ {order_id} was ' +
+                          f'{order["status"]}')
                 order = None
 
         if order == None:
@@ -132,13 +130,11 @@ class Profile:
         renewal = self._config['renewal']
         if x509.get_expiry(cert) - datetime.timedelta(renewal) \
                                                      < datetime.datetime.now():
-            self._log('domain:{}: cert will expire in {} days',
-                      name,
-                      renewal)
+            self._log(f'domain:{name}: cert will expire in {renewal} days')
             del domain['certificate']
             self._write_config()
 
-            self._log('domain:{}: obtaining replacement certificate...', name)
+            self._log(f'domain:{name}: obtaining replacement certificate...')
             self._check_domain(name, domain)
 
             return True
@@ -154,7 +150,7 @@ class Profile:
                 needs_write = False
 
         if needs_write:
-            self._log('domain:{}: updating certificate', name)
+            self._log(f'domain:{name}: updating certificate')
             with open(path, 'wb') as f:
                 f.write(certificate)
 
@@ -193,9 +189,9 @@ class Profile:
             try:
                 self._check_domain(name, domain)
             except ClientError as e:
-                self._log('domain:{}: {}', name, e.args[0], level=logging.ERROR)
+                self._log(f'domain:{name}: {e.args[0]}', logging.ERROR)
             except IOError as e:
-                self._log('domain:{}: {}', name, e, level=logging.ERROR)
+                self._log(f'domain:{name}: {e}', logging.ERROR)
 
     def run(self):
         try:
@@ -203,5 +199,5 @@ class Profile:
             self._check_or_add_account()
             self._check_domains()
         except ClientError as e:
-            self._log('{}', e.args[0], level=logging.ERROR)
+            self._log(f'{e.args[0]}', logging.ERROR)
 
