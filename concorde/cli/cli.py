@@ -3,7 +3,7 @@
 import argparse
 
 from ..crypto  import secp384r1
-from ..client  import Client, ClientError
+from ..client  import Client, Error
 from .commands import \
         key_create, \
         acct_create,  acct_status,  acct_update, \
@@ -188,6 +188,6 @@ def main(args, errfile):
 
     try:
         action(args)
-    except ClientError as e:
+    except Error as e:
         print(e.args[0], file=errfile)
 

@@ -12,8 +12,13 @@ from . import acme
 import cryptography.hazmat.backends
 backend = cryptography.hazmat.backends.default_backend()
 
-class ClientError(Exception):
+class Error(Exception):
     pass
+
+class ServerError(Error):
+    def __init__(self, status_code, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.status_code = status_code
 
 class Client:
     def __init__(self, url, key=None, account_id=None):
@@ -30,20 +35,19 @@ class Client:
 
     def set_account_id(self, account_id):
         if self._account_id != None:
-            raise ClientError(f'Account already set to {self._account_id}')
+            raise Error(f'Account already set to {self._account_id}')
         self._account_id = account_id
 
     def get_account_id(self, account_id):
         if self._account_id == None:
-            raise ClientError('Account not yet set')
+            raise Error('Account not yet set')
         return self._account_id
         self._account_id = account_id
 
     def _needs_account_id(method):
         def result(self, *args, **kwargs):
             if self._account_id == None:
-                raise ClientError('An account ID is required for this '
-                                  'operation')
+                raise Error('An account ID is required for this operation')
             return method(self, *args, **kwargs)
         return result
 
@@ -78,7 +82,8 @@ class Client:
                 detail = response.json()['detail']
             else:
                 detail = response.reason
-            raise ClientError(f'{error_kind} Error: {detail}')
+            raise ServerError(response.status_code,
+                              f'{error_kind} Error: {detail}')
 
         return response
 
@@ -97,8 +102,8 @@ class Client:
         })
 
         if account.status_code == 200:
-            raise ClientError('Account creation failed, account already exists'
-                              ' with key')
+            raise Error('Account creation failed, account already exists with '
+                        'key')
 
         if account.status_code == 201:
             return account.headers['Location'], account.json()

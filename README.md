@@ -55,60 +55,53 @@ The minimal file should look something like this:
 Each piece in the configuration will be explained, by outlining what `shaman`
 will do:
 
-1. look for a `key` property.  If:
-    * it doesn't exist:
-        1. generate a new SECP384R1 account private key
+1. look for a `key` property.  If it doesn't exist:
+    1. generate a new SECP384R1 account private key
+    1. write that key to disk
+    1. create a `key` property that refers to the location from the previous
+       step
+1. look for an `account_id` property.  If it doesn't exist:
+    1. create a new account on the specified `server` with the account key
+    1. create an `account_id` property that refers to the location of the
+       account created in the previous step
+1. for each entry in the `domain` block:
+    1. look for a `key` property.  If it doesn't exist:
+        1. generate a new SECP384R1 domain private key
         1. write that key to disk
         1. create a `key` property that refers to the location from the
            previous step
-    * it does exist:
-        1. skip to the next step
-1. look for an `account_id` property.  If:
-    * it doesn't exist:
-        1. create a new account on the specified `server` with the account key
-        1. create an `account_id` property that refers to the location of the
-           account created in the previous step
-    * it does exist:
-        1. skip to the next step
-1. for each entry in the `domain` block:
-    1. look for a `key` property.  If:
-        * it doesn't exist:
-            1. generate a new SECP384R1 domain private key
-            1. write that key to disk
-            1. create a `key` property that refers to the location from the
-               previous step
-        * it does exist:
-            1. skip to the next step
-    1. look for an `order_id` entry.  If:
-        * it doesn't exist:
-            1. create a new order having a single identifier of type DNS and
-               a value corresponding to the domain name of this `domain` entry
-        * it does exist:
-            1. skip to the next step
-    1. get the order object corresponding to the `order_id` from the previous
-       step.  If its status is:
-        * `pending`, then:
-            1. select the first authorization in this order object
-            1. get the challenge objects corresponding to that authorization
-            1. for each challenge in the authorization:
-                1. load the challenge object corresponding to the
-                   `challenge_id` from the previous step. If its status is:
-                    * `pending`, then:
-                        1. authorize the challenge using the account key
-                        1. invoke the specified `authenticator` for this domain
-                        1. validate the challenge
-                    * otherwise skip this step
-        * `ready`, then:
-            1. finalize this order object with this domain name
-        * `valid`, then:
-            1. get the certificate from this order object
-            1. add a `certificate_id` entry for this domain
-            1. update the certificate on disk (only if the contents have
-               changed)
-            1. check if the certificate will expire before `renewal` days.  If:
-                * it will, then:
-                    1. erase the `certificate_id` entry from this domain
-                    1. repeat the entire step for this domain block anew
+    1. look for either an `order_id` or a `certificate_id` key.  If:
+        * `order_id` exists:
+            1. get the corresponding order object, and check its `status`:
+                * if the order object is not found or its status is `invalid`:
+                    1. create a new order object for this domain
+                    1. update the `order_id` key in this domain
+                * if it is `pending`:
+                    1. for each `pending` `authorization` in the order:
+                        1. for each `challenge in the `authorization`:
+                            1. authorize the challenge using the account key
+                            1. invoke the specified `authenticator` for this
+                               domain
+                            1. validate the challenge
+                        1. fail if none of the challenges can be satisfied with
+                           the specified `authenticators`
+                * if it is `ready`:
+                    1. finalize the order with a CSR generated for this domain
+                * if it is `valid`:
+                    1. fetch the certificate object for this order
+                    1. update the `certificate_id` key for this domain
+                    1. remove the `order_id` key for this domain
+                    1. update the on-disk certificate if needed
+        * `certificate_id` exists:
+            1. fetch the certificate object for this order
+            1. check the certificate expiry date:
+                * if it will expire within `renewal` days:
+                    1. delete the `certificate_id` property
+                    1. repeat the entire step for this domain
+                * otherwise, update the on-disk certificate if needed
+        * neither exist:
+            1. create a new order object for this domain
+            1. update the `order_id` key in this domain
 
 The optional `logThreshold` can control the logging level used. It defaults to
 `20`, but can be set to `10` or lower for more verbose logging.

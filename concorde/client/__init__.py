@@ -1,3 +1,3 @@
 # concorde.client
 
-from .client import Client, ClientError
+from .client import Client, Error, ServerError
