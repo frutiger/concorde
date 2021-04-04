@@ -66,6 +66,8 @@ class Client:
         data     = acme.sign(self._key, header, payload)
         response = self._session.post(url, json.dumps(data).encode('ascii'))
 
+        self._nonce = response.headers['Replay-Nonce']
+
         error_kind = None
         if 400 <= response.status_code < 500:
             error_kind = 'User'
@@ -78,7 +80,6 @@ class Client:
                 detail = response.reason
             raise ClientError(f'{error_kind} Error: {detail}')
 
-        self._nonce = response.headers['Replay-Nonce']
         return response
 
     @_needs_account_id
