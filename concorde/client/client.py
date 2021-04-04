@@ -84,7 +84,11 @@ class Client:
 
     @_needs_account_id
     def get(self, resource_id):
-        return self._post(resource_id).json()
+        response = self._post(resource_id)
+        if response.headers['Content-Type'].startswith('application/json'):
+            return response.json()
+        else:
+            return response.text
 
     def new_account(self, contacts=None):
         account = self._post('newAccount', {
