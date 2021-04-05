@@ -157,7 +157,7 @@ class Client:
         ), critical=True)
         csr = builder.sign(key, hashes.SHA256(), backend)
         csr = csr.public_bytes(serialization.Encoding.DER)
-        csr = acme.safe_b64_encode(csr).decode('ascii')
+        csr = acme.urlsafe_b64(csr).decode('ascii')
 
         order = self._post(self._post(order_id).json()['finalize'], {
             'csr': csr,

@@ -10,26 +10,17 @@ from cryptography.hazmat.primitives            import hashes
 import cryptography.hazmat.backends
 backend = cryptography.hazmat.backends.default_backend()
 
-def safe_b64_encode(bytes):
-    return base64.urlsafe_b64encode(bytes).replace(b'=', b'')
-
-def bytes_to_jwk(bytes):
-    return safe_b64_encode(bytes).decode('ascii')
-
-def uint_to_bytes(n):
-    size = (n.bit_length() + 7) // 8
-    return n.to_bytes(size, 'big')
-
-def uint_to_jwk(n):
-    return safe_b64_encode(uint_to_bytes(n)).decode('ascii')
-
-def canonical_json(obj):
+def utf8_json(obj: object) -> bytes:
     return json.dumps(obj,
                       sort_keys=True,
                       separators=(',', ':')).encode('utf-8')
 
-def jws_safe_obj(obj):
-    return safe_b64_encode(canonical_json(obj))
+def urlsafe_b64(bytes) -> bytes:
+    return base64.urlsafe_b64encode(bytes).rstrip(b'=')
+
+def urlsafe_b64_uint(n: int, size: int) -> bytes:
+    as_bytes = n.to_bytes(size, 'big')
+    return urlsafe_b64(as_bytes)
 
 def pubkey_to_jwk(key):
     if isinstance(key, ec.EllipticCurvePublicKey):
@@ -38,20 +29,23 @@ def pubkey_to_jwk(key):
         else:
             raise ValueError(f'Unsupported curve type: {key.curve.name}')
 
+        key_size_bytes = (key.key_size + 7) // 8
         numbers = key.public_numbers()
+        x = urlsafe_b64_uint(numbers.x, key_size_bytes)
+        y = urlsafe_b64_uint(numbers.y, key_size_bytes)
         return {
             'kty': 'EC',
             'crv': curve,
-            'x':   uint_to_jwk(numbers.x),
-            'y':   uint_to_jwk(numbers.y),
+            'x':   x.decode('ascii'),
+            'y':   y.decode('ascii'),
         }
     else:
         raise ValueError('Unsupported key type: ' + str(type(key)))
 
 def thumbprint(pubkey):
     hasher = hashes.Hash(hashes.SHA256(), backend)
-    hasher.update(canonical_json(pubkey_to_jwk(pubkey)))
-    return safe_b64_encode(hasher.finalize())
+    hasher.update(utf8_json(pubkey_to_jwk(pubkey)))
+    return urlsafe_b64(hasher.finalize())
 
 def sign(key, header, payload):
     if isinstance(key, ec.EllipticCurvePrivateKey):
@@ -65,17 +59,22 @@ def sign(key, header, payload):
     if 'kid' not in header:
         header['jwk'] = pubkey_to_jwk(key.public_key())
 
-    protected = jws_safe_obj(header)
-    payload   = jws_safe_obj(payload) if payload != None else b''
-    message   = protected + b'.' + payload
+    protected = urlsafe_b64(utf8_json(header))
+    if payload == None:
+        payload = b''
+    else:
+        payload = urlsafe_b64(utf8_json(payload))
+    message = protected + b'.' + payload
 
     if isinstance(key, ec.EllipticCurvePrivateKey):
         if isinstance(key.curve, ec.SECP384R1):
             signature = key.sign(message, ec.ECDSA(hashes.SHA384()))
         else:
             raise ValueError(f'Unsupported curve type: {key.curve.name}')
+        key_size_bytes = (key.key_size + 7) // 8
         r, s = utils.decode_dss_signature(signature)
-        signature = safe_b64_encode(uint_to_bytes(r) + uint_to_bytes(s))
+        signature = urlsafe_b64_uint(r, key_size_bytes) + \
+                    urlsafe_b64_uint(s, key_size_bytes)
     else:
         raise ValueError('Unsupported key type: ' + str(type(key)))
 
