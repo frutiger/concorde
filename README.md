@@ -42,11 +42,11 @@ The minimal file should look something like this:
 {
     "server": "https://acme-v02.api.letsencrypt.org/directory",
     "renewal": 10,
+    "authenticators": {
+        "http-01": "prove-challenge"
+    }
     "domains": {
         "example.com": {
-            "authenticators": {
-                "http-01": "prove-challenge"
-            }
         }
     }
 }
@@ -81,7 +81,9 @@ will do:
                         1. for each `challenge in the `authorization`:
                             1. authorize the challenge using the account key
                             1. invoke the specified `authenticator` for this
-                               domain
+                               domain (falling back to a configuration-wide
+                               `authenticator` if a domain-specific
+                               `authenticator` is not found)
                             1. validate the challenge
                         1. fail if none of the challenges can be satisfied with
                            the specified `authenticators`

@@ -82,18 +82,22 @@ class Profile:
     def _respond_challenges(self,
                             name,
                             challenges,
-                            authenticators):
+                            authenticators,
+                            fallback_authenticators):
         for challenge in challenges:
             if challenge['status'] != 'pending':
                 continue
 
             chal_type = challenge['type']
-            if chal_type not in authenticators:
+            authenticator = authenticators.get(chal_type, None)
+            if authenticator == None:
+                authenticator = fallback_authenticators.get(chal_type, None)
+            if authenticator == None:
                 continue
 
             url = challenge['url']
             token, key_auth = self._client.authorize_challenge(url)
-            auth = subprocess.Popen([authenticators[chal_type]],
+            auth = subprocess.Popen([authenticator],
                                      stdin=subprocess.PIPE,
                                      stdout=subprocess.DEVNULL)
             auth.communicate(input=token + b'\n' + key_auth + b'\n')
@@ -150,9 +154,11 @@ class Profile:
                 # TBD: handle other 'authz' states?
                 if authz['status'] == 'pending':
                     self._log(f'{name}: authorizing {authz_id}')
-                    self._respond_challenges(name,
-                                             authz['challenges'],
-                                             domain['authenticators'])
+                    self._respond_challenges(
+                                        name,
+                                        authz['challenges'],
+                                        domain.get('authenticators', {}),
+                                        self._config.get('authenticators', {}))
                     # poll for the order status next time
                     # TBD: should we poll immediately?
                     return
