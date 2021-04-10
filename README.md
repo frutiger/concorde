@@ -4,10 +4,10 @@
 
 1. `concorde.shaman`: a fully automated tool designed to sign TLS certificates
    with minimal setup required
-2. `concorde.client`: a low-level Python 3 ACME client library that
-   `concorde.shaman` uses
-3. `concorde.cli`: a not-so-user-friendly commandline ACME client tool that
-   uses `concorde.client` for when you need to do something manual.
+2. `concorde.cli`: a not-so-user-friendly commandline ACME client tool that for
+   when you need to do something manual
+3. `concorde.acme`: a low-level Python 3 ACME client library that is used by
+   both of the above packages
 
 ## Design goals
 

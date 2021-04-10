@@ -1,14 +1,14 @@
 from setuptools import setup
 
 setup(name='concorde',
-      version='0.12.2',
+      version='0.13.0',
       description='ACME client library, cli tool, and automation tool',
       url='https://github.com/frutiger/concorde',
       author='Masud Rahman',
       license='MIT',
       packages=[
           'concorde',
-          'concorde.client',
+          'concorde.acme',
           'concorde.cli',
           'concorde.crypto',
           'concorde.shaman',

@@ -8,7 +8,7 @@ import os
 import subprocess
 
 from ..crypto import secp384r1, x509
-from ..client import Client, Error, ServerError
+from ..acme   import Client, Error, ServerError
 
 formatter = logging.Formatter('%(levelname)s %(message)s')
 

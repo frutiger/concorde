@@ -3,7 +3,7 @@
 import argparse
 
 from ..crypto  import secp384r1
-from ..client  import Client, Error
+from ..acme    import Client, Error
 from .commands import \
         key_create, \
         acct_create,  acct_status,  acct_update, \

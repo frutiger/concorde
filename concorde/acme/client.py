@@ -1,4 +1,4 @@
-# concorde.client.client
+# concorde.acme.client
 
 import json
 
@@ -7,7 +7,7 @@ import requests
 from cryptography                   import x509
 from cryptography.hazmat.primitives import hashes, serialization
 
-from . import acme
+from . import operations
 
 import cryptography.hazmat.backends
 backend = cryptography.hazmat.backends.default_backend()
@@ -67,7 +67,7 @@ class Client:
         if self._account_id != None:
             header['kid'] = self._account_id
 
-        data     = acme.sign(self._key, header, payload)
+        data     = operations.sign(self._key, header, payload)
         response = self._session.post(url, json.dumps(data).encode('ascii'))
 
         self._nonce = response.headers['Replay-Nonce']
@@ -157,7 +157,7 @@ class Client:
         ), critical=True)
         csr = builder.sign(key, hashes.SHA256(), backend)
         csr = csr.public_bytes(serialization.Encoding.DER)
-        csr = acme.urlsafe_b64(csr).decode('ascii')
+        csr = operations.urlsafe_b64(csr).decode('ascii')
 
         order = self._post(self._post(order_id).json()['finalize'], {
             'csr': csr,
@@ -174,7 +174,7 @@ class Client:
     @_needs_account_id
     def authorize_challenge(self, challenge_id):
         token    = self._post(challenge_id).json()['token'].encode('ascii')
-        key_auth = token + b'.' + acme.thumbprint(self._key.public_key())
+        key_auth = token + b'.' + operations.thumbprint(self._key.public_key())
         return token, key_auth
 
     @_needs_account_id
