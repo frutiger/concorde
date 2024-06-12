@@ -1,6 +1,7 @@
 # concorde.acme.client
 
 import json
+import time
 
 import cryptography
 import requests
@@ -51,15 +52,13 @@ class Client:
             return method(self, *args, **kwargs)
         return result
 
-    def _post(self, resource, payload=None):
-        if self._nonce == None:
-            nonce_url = self._directory['newNonce']
-            new_nonce = self._session.head(nonce_url)
-            new_nonce.raise_for_status()
-            self._nonce = new_nonce.headers['Replay-Nonce']
+    def _get_nonce(self):
+        nonce_url = self._directory['newNonce']
+        nonce = self._session.head(nonce_url)
+        nonce.raise_for_status()
+        return nonce.headers['Replay-Nonce']
 
-        url = self._directory.get(resource, resource)
-
+    def _sign_payload(self, url, payload):
         header = {
             'nonce': self._nonce,
             'url':   url,
@@ -67,24 +66,35 @@ class Client:
         if self._account_id != None:
             header['kid'] = self._account_id
 
-        data     = operations.sign(self._key, header, payload)
-        response = self._session.post(url, json.dumps(data).encode('ascii'))
+        data = operations.sign(self._key, header, payload)
+        return json.dumps(data).encode('ascii')
 
-        error_kind = None
-        if 400 <= response.status_code < 500:
-            error_kind = 'User'
-        elif 500 <= response.status_code:
-            error_kind = 'Server'
-        if error_kind:
-            if response.text:
-                detail = response.json()['detail']
-            else:
-                detail = response.reason
-            raise ServerError(response.status_code,
-                              f'{error_kind} Error: {detail}')
+    def _post(self, resource, payload=None, num_retries=5):
+        if self._nonce == None:
+            self._nonce = self._get_nonce()
 
-        self._nonce = response.headers['Replay-Nonce']
-        return response
+        url      = self._directory.get(resource, resource)
+        response = self._session.post(url, self._sign_payload(url, payload))
+
+        self._nonce = response.headers.get('Replay-Nonce')
+
+        if 400 > response.status_code:
+            return response
+
+        if response.status_code == 503 \
+                and 'Retry-After' in response.headers \
+                and num_retries != 0:
+            retry_after = float(response.headers['Retry-After'])
+            print(f'Scheduling {resource} after {retry_after}s')
+            time.sleep(retry_after)
+            return self._post(resource, payload, num_retries - 1)
+
+        try:
+            detail = response.json()['detail']
+        except:
+            detail = ''
+        raise ServerError(response.status_code,
+                          f'{resource} ({response.status_code}) {detail}')
 
     @_needs_account_id
     def get(self, resource_id):
