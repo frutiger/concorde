@@ -41,8 +41,8 @@ class Client:
     def get_account_id(self, account_id):
         if self._account_id == None:
             raise Error('Account not yet set')
-        return self._account_id
         self._account_id = account_id
+        return self._account_id
 
     def _needs_account_id(method):
         def result(self, *args, **kwargs):
