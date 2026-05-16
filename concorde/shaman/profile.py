@@ -179,7 +179,8 @@ class Profile:
 
     def _is_cert_valid(self, name, domain, cert):
         renewal = self._config['renewal']
-        time_left = x509.get_expiry(cert) - datetime.datetime.now()
+        time_left = x509.get_expiry(cert) - \
+                datetime.datetime.now(datetime.timezone.utc)
         if time_left < datetime.timedelta(renewal):
             self._log(f'{name}: cert will expire in {time_left}')
             return False
