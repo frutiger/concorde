@@ -12,7 +12,7 @@ def print_object(type, id, object):
 
 def key_create(args) -> None:
     key = secp384r1.make_key()
-    with open(args.path, 'wb') as f:
+    with open(args.path, 'wb', opener=secp384r1.key_opener) as f:
         secp384r1.to_file(key, f)
 
 def acct_create(args):

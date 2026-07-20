@@ -40,7 +40,7 @@ class Profile:
             key = secp384r1.make_key()
 
             path = name + '.key.priv.pem'
-            with open(path, 'wb') as f:
+            with open(path, 'wb', opener=secp384r1.key_opener) as f:
                 secp384r1.to_file(key, f)
             config['key'] = path
             self._write_config()
