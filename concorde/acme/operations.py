@@ -73,8 +73,8 @@ def sign(key, header, payload):
             raise ValueError(f'Unsupported curve type: {key.curve.name}')
         key_size_bytes = (key.key_size + 7) // 8
         r, s = utils.decode_dss_signature(signature)
-        signature = urlsafe_b64_uint(r, key_size_bytes) + \
-                    urlsafe_b64_uint(s, key_size_bytes)
+        signature = urlsafe_b64(r.to_bytes(key_size_bytes, 'big') +
+                                s.to_bytes(key_size_bytes, 'big'))
     else:
         raise ValueError('Unsupported key type: ' + str(type(key)))
 
