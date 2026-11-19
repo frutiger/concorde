@@ -97,7 +97,7 @@ class Profile:
 
             url = challenge['url']
             token, key_auth = self._client.authorize_challenge(url)
-            auth = subprocess.Popen([authenticator],
+            auth = subprocess.Popen([authenticator, name],
                                      stdin=subprocess.PIPE,
                                      stdout=subprocess.DEVNULL)
             auth.communicate(input=token + b'\n' + key_auth + b'\n')

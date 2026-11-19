@@ -112,9 +112,10 @@ The optional `logThreshold` can control the logging level used. It defaults to
 
 Since `shaman` defers to 'authenticators' it doesn't need any special
 privileges to prove domain ownership, however it does mean that some additional
-set up is required.  An authenticator is invoked with no arguments.  Data is
-supplied to its standard input as follows (where `<LF>` is the ASCII Line Feed
-character or the `0x0A` octet):
+set up is required.  An authenticator is invoked with the domain name being
+authorized as its only argument, so a single authenticator can serve every
+domain.  Data is supplied to its standard input as follows (where `<LF>` is the
+ASCII Line Feed character or the `0x0A` octet):
 
 ```
 <token><LF><key_authorization><LF>
