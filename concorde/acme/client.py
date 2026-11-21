@@ -152,11 +152,13 @@ class Client:
 
     @_needs_account_id
     def finalize_order(self, order_id, key, names):
-        csr = x509.make_csr(key, names)
-        csr = operations.urlsafe_b64(csr).decode('ascii')
+        return self.finalize_order_with_csr(order_id,
+                                            x509.make_csr(key, names))
 
+    @_needs_account_id
+    def finalize_order_with_csr(self, order_id, csr):
         order = self._post(self._post(order_id).json()['finalize'], {
-            'csr': csr,
+            'csr': operations.urlsafe_b64(csr).decode('ascii'),
         })
 
         return order.json()

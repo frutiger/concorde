@@ -19,3 +19,21 @@ def make_csr(key, names):
     ), critical=True)
     csr = builder.sign(key, hashes.SHA256(), backend)
     return csr.public_bytes(serialization.Encoding.DER)
+
+def load_csr(pem):
+    # return the DER encoding and the set of names (CN and DNS SANs) of the PEM
+    # encoded CSR, raising 'ValueError' if it is malformed or badly signed
+    csr = x509.load_pem_x509_csr(pem, backend)
+    if not csr.is_signature_valid:
+        raise ValueError('signature is not valid')
+
+    names = {a.value for a in
+             csr.subject.get_attributes_for_oid(x509.oid.NameOID.COMMON_NAME)}
+    try:
+        san = csr.extensions.get_extension_for_class(
+                                                 x509.SubjectAlternativeName)
+        names.update(san.value.get_values_for_type(x509.DNSName))
+    except x509.ExtensionNotFound:
+        pass
+
+    return csr.public_bytes(serialization.Encoding.DER), names

@@ -65,8 +65,17 @@ class Profile:
             acct_id = self._add_account()
         self._client.set_account_id(acct_id)
 
-    def _check_or_add_domain_key(self, name, domain):
-        return self._get_or_make_key(domain, name)
+    def _load_domain_csr(self, name, domain):
+        path = domain['csr']
+        with open(path, 'rb') as f:
+            try:
+                csr, names = x509.load_csr(f.read())
+            except ValueError as e:
+                raise Error(f'invalid CSR {path}: {e}')
+        if names != {name}:
+            raise Error(f'CSR {path} is for {", ".join(sorted(names))}, '
+                        f'not {name}')
+        return csr
 
     def _add_order(self, name, domain):
         order_id, order = self._client.new_order([{
@@ -128,7 +137,7 @@ class Profile:
             with open(path, 'wb') as f:
                 f.write(certificate)
 
-    def _check_order(self, name, domain, key):
+    def _check_order(self, name, domain, key, csr):
         order_id = domain['order_id']
         try:
             order = self._client.get(order_id)
@@ -164,7 +173,9 @@ class Profile:
                     return
         elif order['status'] == 'ready':
             self._log(f'{name}: finalizing order')
-            self._client.finalize_order(order_id, key, [name])
+            if csr == None:
+                csr = x509.make_csr(key, [name])
+            self._client.finalize_order_with_csr(order_id, csr)
         elif order['status'] == 'valid':
             certificate_id = order['certificate']
             self._log(f'{name}: got certificate {certificate_id}')
@@ -187,9 +198,15 @@ class Profile:
         return True
 
     def _check_domain(self, name, domain):
-        key = self._check_or_add_domain_key(name, domain)
+        if 'csr' in domain:
+            key = None
+            csr = self._load_domain_csr(name, domain)
+        else:
+            key = self._get_or_make_key(domain, name)
+            csr = None
+
         if 'order_id' in domain:
-            self._check_order(name, domain, key)
+            self._check_order(name, domain, key, csr)
         elif 'certificate_id' in domain:
             certificate = self._client.get(domain['certificate_id'])
             certificate = certificate.encode('ascii')

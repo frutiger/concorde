@@ -65,7 +65,13 @@ will do:
     1. create an `account_id` property that refers to the location of the
        account created in the previous step
 1. for each entry in the `domain` block:
-    1. look for a `key` property.  If it doesn't exist:
+    1. look for a `csr` property.  If it exists, it refers to a PEM encoded
+       certificate signing request whose names (common name and DNS subject
+       alternative names) must be exactly this domain; it is used as-is when
+       finalizing orders and no domain private key is used.  This allows
+       signing certificates for keys that `shaman` never sees, such as one
+       generated on a router (and of whatever algorithm it chose).  If it
+       doesn't exist, look for a `key` property.  If that doesn't exist:
         1. generate a new SECP384R1 domain private key
         1. write that key to disk
         1. create a `key` property that refers to the location from the
@@ -88,7 +94,8 @@ will do:
                         1. fail if none of the challenges can be satisfied with
                            the specified `authenticators`
                 * if it is `ready`:
-                    1. finalize the order with a CSR generated for this domain
+                    1. finalize the order with the domain's CSR (either its
+                       `csr` property or one generated from its `key`)
                 * if it is `valid`:
                     1. fetch the certificate object for this order
                     1. update the `certificate_id` key for this domain
