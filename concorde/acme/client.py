@@ -3,15 +3,10 @@
 import json
 import time
 
-import cryptography
 import requests
-from cryptography                   import x509
-from cryptography.hazmat.primitives import hashes, serialization
 
-from . import operations
-
-import cryptography.hazmat.backends
-backend = cryptography.hazmat.backends.default_backend()
+from ..crypto import x509
+from .        import operations
 
 class Error(Exception):
     pass
@@ -157,15 +152,7 @@ class Client:
 
     @_needs_account_id
     def finalize_order(self, order_id, key, names):
-        builder = x509.CertificateSigningRequestBuilder()
-        builder = builder.subject_name(x509.Name(
-            [x509.NameAttribute(x509.oid.NameOID.COMMON_NAME, names[0])]
-        ))
-        builder = builder.add_extension(x509.SubjectAlternativeName(
-            [x509.DNSName(name) for name in names]
-        ), critical=True)
-        csr = builder.sign(key, hashes.SHA256(), backend)
-        csr = csr.public_bytes(serialization.Encoding.DER)
+        csr = x509.make_csr(key, names)
         csr = operations.urlsafe_b64(csr).decode('ascii')
 
         order = self._post(self._post(order_id).json()['finalize'], {
